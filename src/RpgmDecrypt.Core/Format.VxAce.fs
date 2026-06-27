@@ -62,15 +62,21 @@ module VxAce =
                     let size = readU32LE buf pos
                     pos <- pos + 4
                     let nameLen = readU32LE buf pos
+                    let nameLenInt = int nameLen
                     pos <- pos + 4
                     if nameLen = 0u && size = 0u then keepGoing <- false
-                    elif pos + int nameLen + 4 > buf.Length then
+                    // Defensive: name_len is uint32, can wrap negative on cast.
+                    // Treat any negative-or-too-large value as truncated instead
+                    // of throwing Array.zeroCreate(-N). Discovered by smoke-test
+                    // against F:\fr\g\HC_EP1\Game.rgss3a on 2026-06-27.
+                    elif nameLenInt < 0
+                         || pos + nameLenInt + 4 > buf.Length then
                         keepGoing <- false
                         Error Truncated |> ignore
                     else
-                        let nameBytes = Array.zeroCreate<byte> (int nameLen)
-                        Array.Copy(buf, pos, nameBytes, 0, int nameLen)
-                        pos <- pos + int nameLen
+                        let nameBytes = Array.zeroCreate<byte> nameLenInt
+                        Array.Copy(buf, pos, nameBytes, 0, nameLenInt)
+                        pos <- pos + nameLenInt
                         let offset = readU32LE buf pos
                         pos <- pos + 4
                         let newEntry : Entry =
@@ -80,7 +86,10 @@ module VxAce =
                               Size = int32 size }
                         acc.Add newEntry
                         idx <- idx + 1
-            Ok(List.ofSeq acc, pos)
+            if acc.Count = 0 then
+                Error Truncated
+            else
+                Ok(List.ofSeq acc, pos)
 
     let parseFile (path: string) : Result<Entry list * int, ParseError> =
         let bytes = System.IO.File.ReadAllBytes path
