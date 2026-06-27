@@ -24,6 +24,10 @@ coverage.xml
 # Native AOT publish
 publish/
 out/
+artifacts/
+
+# GitHub Actions
+.github/workflows/*.local.yml
 
 # Rider/VS settings
 .idea/
@@ -40,6 +44,9 @@ Thumbs.db
 # Real-world RPG Maker game files (we never commit user-provided content)
 fixtures-real/
 games-real/
+
+# Generated synthetic-game smoke artifacts (held on D:/rpgm-decrypt-tmp, never in repo)
+smoke-CLI/
 
 # secrets
 *.pfx

@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <Compile Include="TestFramework.fs" />
+    <Compile Include="Generator.fs" />
     <Compile Include="TypesTests.fs" />
     <Compile Include="CryptoTests.fs" />
     <Compile Include="KeyDiscoveryTests.fs" />
@@ -17,6 +18,7 @@
     <Compile Include="FormatMzTests.fs" />
     <Compile Include="FormatXpTests.fs" />
     <Compile Include="EndToEndTests.fs" />
+    <Compile Include="EndToEndRealFixtureTests.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
 

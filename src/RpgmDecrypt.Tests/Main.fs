@@ -13,6 +13,7 @@ let main (_ : string[]) : int =
     FormatMzTests.register ()
     FormatXpTests.register ()
     EndToEndTests.register ()
+    EndToEndRealFixtureTests.register ()
     let n = List.length (TestFramework.snapshot ())
     printfn "[main] tests registered so far: %d" n
     TestFramework.runAll ()
