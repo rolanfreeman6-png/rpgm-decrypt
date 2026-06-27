@@ -11,6 +11,7 @@
     <Compile Include="Types.fs" />
     <Compile Include="Crypto.fs" />
     <Compile Include="KeyDiscovery.fs" />
+    <Compile Include="VxAceKey.fs" />
     <Compile Include="Format.Mv.fs" />
     <Compile Include="Format.Mz.fs" />
     <Compile Include="Format.Xp.fs" />
