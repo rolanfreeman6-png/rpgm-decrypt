@@ -9,41 +9,41 @@ let register () : unit =
         let header : byte[] =
             [| 0x52uy; 0x47uy; 0x53uy; 0x53uy; 0x41uy; 0x44uy; 0x00uy; 0x01uy |]
         let fname = System.Text.Encoding.UTF8.GetBytes "Graphics/Hero.png"
+        let payload : byte[] = [| 0xCAuy; 0xFEuy; 0xBAuy; 0xBEuy; 0xDEuy; 0xADuy; 0xBEuy; 0xEFuy |]
         let magicKey = Xp.magicKey
         let encodedName = Array.zeroCreate<byte> fname.Length
         for i = 0 to fname.Length - 1 do
             encodedName.[i] <- fname.[i] ^^^ magicKey.[i % magicKey.Length]
-        // Real XP layout: size(4) + offset(4) + name_len(4) + name
-        // (Petschko/RPG-Maker-MV-Decrypter, MIT).
-        let total = header.Length + 4 + 4 + 4 + fname.Length
+        // Real XP layout per Petschko:
+        //   header | size(4) | offset(4) | name_len(4) | name
+        //   | terminator-record (size=0+offset=0+name_len=0 = 12 zero bytes)
+        //   | payload
+        let posNameStart  = header.Length + 12
+        let posTerminator = posNameStart + fname.Length
+        let posPayload    = posTerminator + 12
+        let total         = posPayload + payload.Length
         let buf = Array.zeroCreate<byte> total
         Array.Copy(header, 0, buf, 0, header.Length)
-        let mutable pos = header.Length
-        // size (LE u32)
-        buf.[pos]     <- 100uy
-        buf.[pos + 1] <- 0uy
-        buf.[pos + 2] <- 0uy
-        buf.[pos + 3] <- 0uy
-        pos <- pos + 4
-        // offset (LE u32)
-        buf.[pos]     <- 30uy
-        buf.[pos + 1] <- 0uy
-        buf.[pos + 2] <- 0uy
-        buf.[pos + 3] <- 0uy
-        pos <- pos + 4
-        // name_len (LE u32)
-        buf.[pos]     <- byte fname.Length
-        buf.[pos + 1] <- 0uy
-        buf.[pos + 2] <- 0uy
-        buf.[pos + 3] <- 0uy
-        pos <- pos + 4
-        Array.Copy(encodedName, 0, buf, pos, fname.Length)
+        buf.[header.Length]     <- byte payload.Length      // size
+        buf.[header.Length + 4] <- byte posPayload          // offset
+        buf.[header.Length + 8] <- byte fname.Length        // name_len
+        Array.Copy(encodedName, 0, buf, posNameStart, fname.Length)
+        // terminator-record is 12 zero bytes (already by Array.zeroCreate)
+        Array.Copy(payload, 0, buf, posPayload, payload.Length)
         match Xp.parse buf with
         | Ok(entries, _) ->
+            let entry = List.head entries
+            let actualName = entry.Name
+            let actualNameBytes =
+                System.Text.Encoding.ASCII.GetBytes actualName
+                |> Array.map (sprintf "%02x") |> String.concat " "
+            let actualSize = entry.Size
+            let actualOffset = entry.Offset
+            let expPayload = payload.Length
             Test.equal "1 entry" 1 (List.length entries)
-            Test.equal "name" "Graphics/Hero.png" entries.Head.Name
-            Test.equal "size" 100 entries.Head.Size
-            Test.equal "offset" 30L entries.Head.Offset
+            Test.equal "name" "Graphics/Hero.png" actualName
+            Test.equal "size" expPayload actualSize
+            Test.equal "offset" (int64 posPayload) actualOffset
         | Error e -> Test.isFalse (sprintf "expected Ok, got %A" e) true)
 
     Test.register "Xp.parse: bad magic -> BadMagic" (fun () ->

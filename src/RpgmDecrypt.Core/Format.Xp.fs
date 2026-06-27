@@ -68,6 +68,8 @@ module Xp =
 
     /// Try to parse an XP `.rgssad` archive's table of contents.
     /// Returns `entries` plus the byte-offset of the first payload.
+    /// Per reverse-engineered public algorithm: entries terminate when
+    /// `name_len = 0` (a u32 = 0 sentinel at the end of the table).
     let parse (buf: byte[]) : Result<Entry list * int, ParseError> =
         if buf.Length < 8 then Error ShortHeader
         elif not (Crypto.startsWith magicKey buf) then Error BadMagic
@@ -80,21 +82,28 @@ module Xp =
             while keepGoing do
                 if pos + 12 > buf.Length then keepGoing <- false
                 else
-                    let size             = readU32LE buf pos
+                    let size   = readU32LE buf pos
                     pos <- pos + 4
-                    let offset           = readU32LE buf pos
+                    let offset = readU32LE buf pos
                     pos <- pos + 4
-                    let nameLen          = readU32LE buf pos
+                    let nameLen = readU32LE buf pos
                     pos <- pos + 4
-                    if nameLen = 0u && size = 0u then keepGoing <- false
-                    elif pos + int nameLen > buf.Length then
+                    let nameLenInt = int nameLen
+                    if nameLen = 0u then
+                        // Sentinel: end of entries table.
+                        keepGoing <- false
+                    elif nameLenInt < 0
+                         || pos + nameLenInt > buf.Length then
+                        // nameLen is either wrapped negative or has no room
+                        // in the buffer; treat as truncated header rather
+                        // than throw inside `Array.Copy`.
                         acc.Clear()
                         Error Truncated |> ignore
                         keepGoing <- false
                     else
-                        let nameBytes = Array.zeroCreate<byte> (int nameLen)
-                        Array.Copy(buf, pos, nameBytes, 0, int nameLen)
-                        pos <- pos + int nameLen
+                        let nameBytes = Array.zeroCreate<byte> nameLenInt
+                        Array.Copy(buf, pos, nameBytes, 0, nameLenInt)
+                        pos <- pos + nameLenInt
                         let newEntry : Entry =
                             { Index = idx
                               Name = xorDecodeName nameBytes

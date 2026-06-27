@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel any in-flight run of the same ref so we don't burn CI minutes
+# on stale `git push --force` chains.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: build + test (${{ matrix.os }} ${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+        arch:
+          - x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          include-msbuild: false
+
+      - name: Restore
+        run: dotnet restore src/RpgmDecrypt.slnx
+
+      - name: Build (Release)
+        shell: pwsh
+        run: |
+          dotnet build src/RpgmDecrypt.slnx `
+            --configuration Release `
+            --no-restore `
+            /p:TreatWarningsAsErrors=true
+
+      - name: Run tests (Release)
+        shell: pwsh
+        run: |
+          dotnet run `
+            --project src/RpgmDecrypt.Tests `
+            --configuration Release `
+            --no-build
+
+  cli-linux-x64:
+    name: publish CLI (linux-x64, self-contained)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish src/RpgmDecrypt.Cli `
+            --configuration Release `
+            --runtime linux-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:StripSymbols=true `
+            -o artifacts/linux-x64
+
+      - name: Smoke-test the CLI
+        shell: bash
+        run: |
+          chmod +x artifacts/linux-x64/rpgm-decrypt
+          artifacts/linux-x64/rpgm-decrypt --version
+          artifacts/linux-x64/rpgm-decrypt --help | head -20
+
+  cli-osx-arm64:
+    name: publish CLI (osx-arm64, self-contained)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish src/RpgmDecrypt.Cli `
+            --configuration Release `
+            --runtime osx-arm64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:StripSymbols=true `
+            -o artifacts/osx-arm64
+
+      - name: Smoke-test the CLI
+        shell: bash
+        run: |
+          chmod +x artifacts/osx-arm64/rpgm-decrypt
+          ./artifacts/osx-arm64/rpgm-decrypt --version
+
+  cli-windows-x64:
+    name: publish CLI (windows-x64, self-contained)
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish src/RpgmDecrypt.Cli `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:StripSymbols=true `
+            -o artifacts/win-x64
+
+      - name: Smoke-test the CLI
+        shell: pwsh
+        run: |
+          ./artifacts/win-x64/rpgm-decrypt.exe --version
+          ./artifacts/win-x64/rpgm-decrypt.exe --help | Select-Object -First 10
+
+  upload:
+    name: upload artifacts on tag
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [cli-linux-x64, cli-osx-arm64, cli-windows-x64]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-linux-x64
+          path: dist/linux-x64
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-osx-arm64
+          path: dist/osx-arm64
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-windows-x64
+          path: dist/win-x64
+      - name: Attach binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/linux-x64/rpgm-decrypt
+            dist/osx-arm64/rpgm-decrypt
+            dist/win-x64/rpgm-decrypt.exe
