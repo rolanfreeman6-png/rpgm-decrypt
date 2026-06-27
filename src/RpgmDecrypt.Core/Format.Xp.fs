@@ -2,28 +2,27 @@ namespace RpgmDecrypt.Core
 
 /// RPG Maker XP `.rgssad` (version 1) archive walker.
 ///
-/// File layout (reverse-engineered, documented in many community wikis;
-/// cross-checked against Petschko's reading algorithm reference).
+/// File layout per the publicly-documented RPG Maker archive format
+/// (Petschko/RPG-Maker-MV-Decrypter — MIT, archive-only; cross-checked
+/// against uuksu/RPGMakerDecrypter):
 ///
 /// HEADER:
-///   bytes 0..6  : 'RGSSAD\0' (7)
+///   bytes 0..6  : 'RGSSAD\0'  (7 bytes — fixed-width ASCII magic)
 ///   byte  7     : version = 0x01 (XP)
 ///
 /// ENTRIES — for each packed file, in order:
-///   u32 little-endian: name_len
-///   bytes (name_len) : name, XOR-obfuscated with the magic key
-///   u32 little-endian: size (the on-disk size of the payload, *not*
-///                      zlib-decompressed)
-///   u32 little-endian: offset (absolute position in the file)
+///   u32 little-endian: size       (on-disk size of the deflated payload)
+///   u32 little-endian: offset     (absolute position in the file of the payload)
+///   u32 little-endian: name_len   (length of name_bytes, including NUL terminator)
+///   bytes (name_len) : name, XOR-obfuscated with the magic prefix bytes
 ///
-/// Payload is zlib-deflated (raw deflate, no zlib header) — the engine
-/// inflates on read. We identify each entry; the .rxdata content of MVP
-/// MVP outputs is delivered as-is (we do not run the Ruby Marshal
-/// interpreter; the user can pipe through Ruby if needed).
+/// Payload is zlib-deflated; we identify each entry's offset/size so the
+/// user can pipe each entry through `zlib inflate` + `ruby Marshal.load`
+/// in their toolchain of choice. We do not run the Ruby Marshal
+/// interpreter ourselves (security posture — see docs/THEORY.md §8).
 ///
-/// XOR key for filename obfuscation: `RGSSAD\0` cycling. The same 7-byte
-/// payload is the XOR key — the archive's own header doubles as its own
-/// deobfuscation key.
+/// XOR key for filename obfuscation: the 7-byte RGSSAD magic itself,
+/// cycling. The archive's own header doubles as its own deobfuscation key.
 [<RequireQualifiedAccess>]
 module Xp =
 
@@ -51,9 +50,8 @@ module Xp =
         else
             let out = Array.zeroCreate<byte> raw.Length
             let keyLen = magicKey.Length
-            for i in 0 .. raw.Length - 1 do
+            for i = 0 to raw.Length - 1 do
                 out.[i] <- raw.[i] ^^^ magicKey.[i % keyLen]
-            // strip trailing NUL if present
             let mutable endIdx = out.Length
             while endIdx > 0 && out.[endIdx - 1] = 0uy do
                 endIdx <- endIdx - 1
@@ -80,12 +78,16 @@ module Xp =
             let acc = ResizeArray<Entry>()
             let mutable keepGoing = true
             while keepGoing do
-                if pos + 4 > buf.Length then keepGoing <- false
+                if pos + 12 > buf.Length then keepGoing <- false
                 else
-                    let nameLen = readU32LE buf pos
+                    let size             = readU32LE buf pos
                     pos <- pos + 4
-                    if nameLen = 0u then keepGoing <- false
-                    elif pos + int nameLen + 8 > buf.Length then
+                    let offset           = readU32LE buf pos
+                    pos <- pos + 4
+                    let nameLen          = readU32LE buf pos
+                    pos <- pos + 4
+                    if nameLen = 0u && size = 0u then keepGoing <- false
+                    elif pos + int nameLen > buf.Length then
                         acc.Clear()
                         Error Truncated |> ignore
                         keepGoing <- false
@@ -93,14 +95,9 @@ module Xp =
                         let nameBytes = Array.zeroCreate<byte> (int nameLen)
                         Array.Copy(buf, pos, nameBytes, 0, int nameLen)
                         pos <- pos + int nameLen
-                        let size = readU32LE buf pos
-                        pos <- pos + 4
-                        let offset = readU32LE buf pos
-                        pos <- pos + 4
-                        let nameStr = xorDecodeName nameBytes
                         let newEntry : Entry =
                             { Index = idx
-                              Name = nameStr
+                              Name = xorDecodeName nameBytes
                               Offset = int64 offset
                               Size = int32 size }
                         acc.Add newEntry

@@ -27,7 +27,10 @@ module Crypto =
     // ---- Magic-byte constants ---------------------------------------------
     let magicMvHeader     : byte[] = ascii "RPGMV"
     let magicMzHeader     : byte[] = ascii "RPGMZ"
-    let magicRgssadPrefix : byte[] = ascii "RGSSAD\0" // 7 bytes
+    // 7 bytes "RGSSAD\0" — explicit bytes; F#"RGSSAD\0" expansion on
+    // .NET 10 silently grew the constant to 8 bytes (see Xp.parse).
+    let magicRgssadPrefix : byte[] =
+        [| 0x52uy; 0x47uy; 0x53uy; 0x53uy; 0x41uy; 0x44uy; 0x00uy |]    // F#"RGSSAD\0" expands to 8 chars on .NET 10; keep bytes explicit
     // PNG header carries 0x89, outside ASCII's 7-bit range; we hard-code
     // the eight bytes so the result is byte-exact (Encoding.ASCII would
     // silently map 0x89 -> '?'). RFC 2083 PNG signature.

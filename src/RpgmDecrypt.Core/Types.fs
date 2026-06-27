@@ -11,8 +11,6 @@ type Format =
     | MZ     // RPG Maker MZ, .pak ZIP containing same MV-scheme encrypted assets
 
 module Format =
-    let allCases: Format list = [ XP; VX; VXAce; MV; MZ ]
-
     let toString =
         function
         | XP -> "XP"

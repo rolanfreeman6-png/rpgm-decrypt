@@ -80,9 +80,16 @@ module Report =
             | MZ ->
                 match Dispatch.decryptArchive cfg.Key d.AbsPath with
                 | Ok entries ->
+                    // MZ archive entries may sit at the archive root. If
+                    // outRel has no directory part, Path.GetDirectoryName
+                    // returns "" — Path.Combine("", x) returns just x. We
+                    // route through "." instead so the file lands in a
+                    // predictable location, not flat at cfg.OutDir.
+                    let dirPart = Path.GetDirectoryName outRel
+                    let safeDir = if String.IsNullOrEmpty dirPart then "." else dirPart
                     for (entryName, bytes, kind) in entries do
                         let entryOutRel =
-                            Path.Combine(Path.GetDirectoryName outRel, entryName)
+                            Path.Combine(safeDir, entryName)
                             |> renameByKind kind
                         let entryOutAbs = Path.Combine(cfg.OutDir, entryOutRel)
                         if not cfg.DryRun then writeAllBytes entryOutAbs bytes

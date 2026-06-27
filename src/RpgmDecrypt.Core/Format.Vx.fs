@@ -1,8 +1,11 @@
 namespace RpgmDecrypt.Core
 
 /// RPG Maker VX archive walker — extension `.rgssad` with version byte
-/// 0x02, or `.rgss2a` extension. Same XOR-on-filename scheme as XP but
-/// with slightly different byte layout (size + offset after name).
+/// 0x02, or `.rgss2a` extension.
+///
+/// Layout is identical to XP (`size, offset, name_len, name` per the
+/// publicly-documented Petschko/RPG-Maker-MV-Decrypter algorithm, MIT,
+/// archive-only); the only differentiator is the magic version byte.
 [<RequireQualifiedAccess>]
 module Vx =
 
@@ -29,7 +32,7 @@ module Vx =
         else
             let out = Array.zeroCreate<byte> raw.Length
             let keyLen = magicKey.Length
-            for i in 0 .. raw.Length - 1 do
+            for i = 0 to raw.Length - 1 do
                 out.[i] <- raw.[i] ^^^ magicKey.[i % keyLen]
             let mutable endIdx = out.Length
             while endIdx > 0 && out.[endIdx - 1] = 0uy do endIdx <- endIdx - 1
@@ -43,7 +46,7 @@ module Vx =
         ||| (uint32 buf.[pos + 2] <<< 16)
         ||| (uint32 buf.[pos + 3] <<< 24)
 
-    /// Layout: name_len, name, size, offset — same as XP. Just version byte differs.
+    /// Layout: `size, offset, name_len, name`.
     let parse (buf: byte[]) : Result<Entry list * int, ParseError> =
         if buf.Length < 8 then Error ShortHeader
         elif not (Crypto.startsWith magicKey buf) then Error BadMagic
@@ -54,22 +57,22 @@ module Vx =
             let acc = ResizeArray<Entry>()
             let mutable keepGoing = true
             while keepGoing do
-                if pos + 4 > buf.Length then keepGoing <- false
+                if pos + 12 > buf.Length then keepGoing <- false
                 else
-                    let nameLen = readU32LE buf pos
+                    let size             = readU32LE buf pos
                     pos <- pos + 4
-                    if nameLen = 0u then keepGoing <- false
-                    elif pos + int nameLen + 8 > buf.Length then
+                    let offset           = readU32LE buf pos
+                    pos <- pos + 4
+                    let nameLen          = readU32LE buf pos
+                    pos <- pos + 4
+                    if nameLen = 0u && size = 0u then keepGoing <- false
+                    elif pos + int nameLen > buf.Length then
                         keepGoing <- false
                         Error Truncated |> ignore
                     else
                         let nameBytes = Array.zeroCreate<byte> (int nameLen)
                         Array.Copy(buf, pos, nameBytes, 0, int nameLen)
                         pos <- pos + int nameLen
-                        let size = readU32LE buf pos
-                        pos <- pos + 4
-                        let offset = readU32LE buf pos
-                        pos <- pos + 4
                         let newEntry : Entry =
                             { Index = idx
                               Name = xorDecodeName nameBytes
@@ -77,7 +80,10 @@ module Vx =
                               Size = int32 size }
                         acc.Add newEntry
                         idx <- idx + 1
-            Ok(List.ofSeq acc, pos)
+            if acc.Count = 0 then
+                Error Truncated
+            else
+                Ok(List.ofSeq acc, pos)
 
     let parseFile (path: string) : Result<Entry list * int, ParseError> =
         let bytes = System.IO.File.ReadAllBytes path

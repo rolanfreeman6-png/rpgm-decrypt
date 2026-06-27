@@ -6,10 +6,25 @@ human-readable progress, structured logs for scripting.
 
 ```text
 $ rpgm-decrypt ./Undertale ./decrypted
-[MV] detected 1873 encrypted files; key recovered from System.json (hex)
-[█████████████████] 1873/1873 | ok=1869 fail=4 | 4.2 s | 1.1 GB
+[key] System.json (...)
+walked ... (1873 B)
+  + detected ... as MV
+  > ... -> ... [MV]
+...
+=== summary ===
+scanned: 1873
+decrypted: 1869
+pass-through: 0
+skipped: 0
+failed: 4
+key source: System.json (...)
+duration: 4.2s
+by format: MV=1873
+
 exit 0
 ```
+
+(Real output is one event per file; the `...` rows above are illustrative.)
 
 ## Why
 
@@ -89,44 +104,57 @@ If neither yields a key, you must supply `--password-file` or `--password`.
 ```text
 $ dotnet build -c Release
 $ dotnet publish src/RpgmDecrypt.Cli -c Release -r win-x64 \
-    -p:PublishAot=true -p:StripSymbols=true \
-    --self-contained true
+    --self-contained true \
+    -p:PublishSingleFile=true \
+    -p:IncludeNativeLibrariesForSelfExtract=true
 $ ./bin/Release/net10.0/win-x64/publish/rpgm-decrypt.exe --help
 ```
 
 The resulting `.exe` is a single self-contained binary; copy it onto a
 machine with no .NET installed and it just runs.
 
+For Linux/macOS, set `-r linux-x64` (musl) or `-r osx-arm64` respectively.
+All magic-byte constants and crypto paths are pure managed code so no
+native compile step is required.
+
 ## Layout
 
 ```
 src/
-  RpgmDecrypt.sln
+  RpgmDecrypt.slnx
   RpgmDecrypt.Core/      pure functional core (algorithm library)
-    Types.fs            Format, Result, Report discriminated unions
-    Crypto.fs           XOR scheme + key handling
-    KeyDiscovery.fs     Auto-find System.json, scan rpg_core.js
-    Format.Mv.fs        MV/MZ XOR scheme
+    Types.fs            Format, Outcome, RunSummary discriminated unions
+    Crypto.fs           XOR scheme + magic-byte helpers + hex decode
+    KeyDiscovery.fs     Auto-find System.json / scan rpg_core.js
+                         + --password-file validation against real cipher
+    Format.Mv.fs        MV/MZ XOR scheme + plaintext detection
     Format.Mz.fs        .pak = ZIP + per-entry MV scheme
-    Format.Xp.fs        .rgssad v1 walker
-    Format.Vx.fs        .rgss2a walker
-    Format.VxAce.fs     .rgss3a walker
+    Format.Xp.fs        .rgssad v1 walker (size, offset, name_len, name)
+    Format.Vx.fs        .rgssad v2 walker (same layout as XP)
+    Format.VxAce.fs     .rgss3a walker (size, name_len, name, offset)
     Walk.fs             Recursive file-system walker
     Log.fs              NDJSON + human output
-    Report.fs           Final per-run summary
+    Report.fs           Final per-run summary, mirror-tree write
   RpgmDecrypt.Cli/       executable front-end
     Program.fs          Arg parser + glue
-  RpgmDecrypt.Tests/     round-trip + golden-fixture tests
+  RpgmDecrypt.Tests/     in-process test runner + round-trip + golden-fixture tests
 ```
 
 ## Test
 
 ```text
-$ dotnet test
+$ dotnet run --project src/RpgmDecrypt.Tests -c Release
 ```
 
-Fixture files for MV/MZ are generated at test-time by `Fixtures/Generator.fs`
-so tests stay hermetic and zero-binary-bloat.
+The test project is an executable (not a library) that runs an
+in-process test runner over the 7 test modules. There is no xUnit / NUnit
+dependency — see `src/RpgmDecrypt.Tests/TestFramework.fs` for the
+~100-LoC runner.
+
+Fixture bytes are generated at test-time inside each `register ()` block.
+We deliberately do not commit real RPG Maker game bytes to the repo
+to avoid licensing complications; use `dotnet run --project` to
+exercise the synthetic fixtures before pointing the binary at a real game.
 
 ## License
 
