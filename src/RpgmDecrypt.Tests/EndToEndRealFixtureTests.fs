@@ -119,6 +119,36 @@ let testXpRgssadRoundTrip () =
         finally
             try Directory.Delete(tmpRoot, true) with | _ -> ())
 
+/// Regression: Dispatch.classify must accept PLAINTEXT .png/.ogg/.m4a (no
+/// underscore) and yield Format.MV, otherwise Report.run copies nothing for
+/// pass-through files. Found on 2026-06-27 against synthetic encrypted-mv
+/// fixture where Balloon.png (plain PNG) was silently dropped.
+let testPlaintextExtensionsClassifiedAsMV () =
+    Test.register "Dispatch.classify: plaintext .png is MV (pass-through path)" (fun () ->
+        let tmpRoot = tmpPath ()
+        Directory.CreateDirectory tmpRoot |> ignore
+        try
+            let pngPath = Path.Combine(tmpRoot, "img", "Balloon.png")
+            Directory.CreateDirectory(Path.Combine(tmpRoot, "img")) |> ignore
+            File.WriteAllBytes(pngPath,
+                System.Convert.FromHexString "89504E470D0A1A0A0000000D49484452")
+            let out = Path.Combine(tmpRoot, "out")
+            let summary =
+                Report.run
+                    { GameDir   = tmpRoot
+                      OutDir    = out
+                      Key       = System.Convert.FromHexString "00000000000000000000000000000000"
+                      KeySource = "synthetic-all-zeros"
+                      DryRun    = false
+                      OnEvent   = fun _ -> () }
+            Test.isTrue "scanned >= 1" (summary.InputsScanned >= 1)
+            let copied = Path.Combine(out, "img", "Balloon.png")
+            Test.isTrue (sprintf "pass-through PNG copied to %s" copied) (File.Exists copied)
+            let actual = File.ReadAllBytes copied
+            Test.equalBytes "bytes preserved" (File.ReadAllBytes pngPath) actual
+        finally
+            try Directory.Delete(tmpRoot, true) with | _ -> ())
+
 let testDryRun () =
     Test.register "End-to-end: --dry-run writes no file" (fun () ->
         let tmpRoot = tmpPath ()
@@ -143,4 +173,5 @@ let register () : unit =
     testMvFullPipeline ()
     testMzPakRoundTrip ()
     testXpRgssadRoundTrip ()
+    testPlaintextExtensionsClassifiedAsMV ()
     testDryRun ()
