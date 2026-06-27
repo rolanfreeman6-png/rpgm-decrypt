@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>RpgmDecrypt.Core</RootNamespace>
+    <AssemblyName>RpgmDecrypt.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Types.fs" />
+    <Compile Include="Crypto.fs" />
+    <Compile Include="KeyDiscovery.fs" />
+    <Compile Include="Format.Mv.fs" />
+    <Compile Include="Format.Mz.fs" />
+    <Compile Include="Format.Xp.fs" />
+    <Compile Include="Format.Vx.fs" />
+    <Compile Include="Format.VxAce.fs" />
+    <Compile Include="Format.fs" />
+    <Compile Include="Walk.fs" />
+    <Compile Include="Log.fs" />
+    <Compile Include="Report.fs" />
+  </ItemGroup>
+
+</Project>

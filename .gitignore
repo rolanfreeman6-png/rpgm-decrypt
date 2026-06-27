@@ -1,0 +1,50 @@
+# Build artifacts
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.user
+*.suo
+.vs/
+.fake/
+
+# Test output
+TestResults/
+coverage/
+*.coverage
+coverage.xml
+*.trx
+
+# F# specific
+*.fs.lock
+.fsharp/
+.fsproj.user
+
+# Native AOT publish
+publish/
+out/
+
+# Rider/VS settings
+.idea/
+*.DotSettings.user
+
+# logs
+*.log
+logs/
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Real-world RPG Maker game files (we never commit user-provided content)
+fixtures-real/
+games-real/
+
+# secrets
+*.pfx
+*.key
+secrets/
+
+# node-style (just in case)
+node_modules/

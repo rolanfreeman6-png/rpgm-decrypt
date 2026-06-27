@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="RpgmDecrypt.Cli/RpgmDecrypt.Cli.fsproj" />
+  <Project Path="RpgmDecrypt.Core/RpgmDecrypt.Core.fsproj" />
+  <Project Path="RpgmDecrypt.Tests/RpgmDecrypt.Tests.fsproj" />
+</Solution>
