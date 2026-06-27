@@ -17,6 +17,7 @@
     <Compile Include="FormatMvTests.fs" />
     <Compile Include="FormatMzTests.fs" />
     <Compile Include="FormatXpTests.fs" />
+    <Compile Include="FormatVxAceTests.fs" />
     <Compile Include="EndToEndTests.fs" />
     <Compile Include="EndToEndRealFixtureTests.fs" />
     <Compile Include="Main.fs" />

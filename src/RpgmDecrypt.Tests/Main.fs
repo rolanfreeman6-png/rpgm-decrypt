@@ -12,6 +12,7 @@ let main (_ : string[]) : int =
     FormatMvTests.register ()
     FormatMzTests.register ()
     FormatXpTests.register ()
+    FormatVxAceTests.register ()
     EndToEndTests.register ()
     EndToEndRealFixtureTests.register ()
     let n = List.length (TestFramework.snapshot ())
