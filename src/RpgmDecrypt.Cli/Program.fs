@@ -137,10 +137,18 @@ let main (argv: string[]) : int =
     let outDir  =
         if pos.Count >= 2 then pos.[1]
         else
-            let parent = Directory.GetParent(gameDir).FullName
+            // Directory.GetParent returns null for root paths
+            // (e.g. "C:\"); handle by falling back to gameDir as the
+            // parent so outDir becomes a sibling-with-suffix.
+            let parentInfo = Directory.GetParent gameDir
+            let parent =
+                if isNull parentInfo then gameDir
+                else parentInfo.FullName
             let trimmed =
                 gameDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-            let stem = Path.GetFileName(trimmed)
+            let stem =
+                if String.IsNullOrEmpty trimmed then "game"
+                else Path.GetFileName(trimmed)
             Path.Combine(parent, "rpgm-decrypted-" + stem)
 
     if not (Directory.Exists gameDir) then

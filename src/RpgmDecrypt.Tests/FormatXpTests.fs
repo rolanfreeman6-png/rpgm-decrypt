@@ -13,18 +13,12 @@ let register () : unit =
         let encodedName = Array.zeroCreate<byte> fname.Length
         for i = 0 to fname.Length - 1 do
             encodedName.[i] <- fname.[i] ^^^ magicKey.[i % magicKey.Length]
-        let total = header.Length + 4 + fname.Length + 4 + 4
+        // Real XP layout: size(4) + offset(4) + name_len(4) + name
+        // (Petschko/RPG-Maker-MV-Decrypter, MIT).
+        let total = header.Length + 4 + 4 + 4 + fname.Length
         let buf = Array.zeroCreate<byte> total
         Array.Copy(header, 0, buf, 0, header.Length)
         let mutable pos = header.Length
-        // name_len (LE u32)
-        buf.[pos]     <- byte fname.Length
-        buf.[pos + 1] <- 0uy
-        buf.[pos + 2] <- 0uy
-        buf.[pos + 3] <- 0uy
-        pos <- pos + 4
-        Array.Copy(encodedName, 0, buf, pos, fname.Length)
-        pos <- pos + fname.Length
         // size (LE u32)
         buf.[pos]     <- 100uy
         buf.[pos + 1] <- 0uy
@@ -37,6 +31,13 @@ let register () : unit =
         buf.[pos + 2] <- 0uy
         buf.[pos + 3] <- 0uy
         pos <- pos + 4
+        // name_len (LE u32)
+        buf.[pos]     <- byte fname.Length
+        buf.[pos + 1] <- 0uy
+        buf.[pos + 2] <- 0uy
+        buf.[pos + 3] <- 0uy
+        pos <- pos + 4
+        Array.Copy(encodedName, 0, buf, pos, fname.Length)
         match Xp.parse buf with
         | Ok(entries, _) ->
             Test.equal "1 entry" 1 (List.length entries)

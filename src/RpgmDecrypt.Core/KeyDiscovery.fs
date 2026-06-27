@@ -1,16 +1,25 @@
 namespace RpgmDecrypt.Core
 
-/// Discovery of the MV/MZ encryption key without user input.
+/// Discovery of the MV/MZ encryption key without user input, plus the
+/// `--password-file` path which tries a user-supplied wordlist against the
+/// actual cipher bytes.
 ///
-/// Two-step walk:
-///   1. Read `<game_dir>/www/js/System.json`, extract the `encryptionKey`
-///      property and decode its 32-char hex value.
-///   2. If unreadable, scan `<game_dir>/www/js/*.js` for assignments
-///      to the engine's `_encryptionKey` (case-insensitive substring
-///      match) and parse whichever literal shape we find.
+/// Strategy:
+///   * `discover`              — System.json → rpg_core.js → other *.js.
+///     Used when the user supplied `--password-file` is not provided, OR
+///     the supplied wordlist is empty.
+///   * `discoverWithWordlist`  — for each 32-char hex candidate in the
+///     wordlist, attempt to validate the key by XOR-ing the first 16
+///     bytes of an actual encrypted .png_/ogg_/m4a_/rpgmvp file and
+///     checking whether the result looks like a real plaintext magic
+///     (PNG/OGG/JPG/M4A/WebP). The first candidate that validates
+///     wins; if none do, the caller is told to supply a single key via
+///     `--password` instead.
 ///
 /// We never evaluate JavaScript. We extract plain literals.
 module KeyDiscovery =
+
+    open System.IO
 
     type Result =
         | Found of bytes: byte[] * source: string
@@ -34,11 +43,11 @@ module KeyDiscovery =
 
     /// Try to read System.json and extract a hex key.
     let trySystemJson (systemJsonPath: string) : Result =
-        if not (System.IO.File.Exists systemJsonPath) then
+        if not (File.Exists systemJsonPath) then
             NotFound (sprintf "no System.json at %s" systemJsonPath)
         else
             try
-                let txt = System.IO.File.ReadAllText systemJsonPath
+                let txt = File.ReadAllText systemJsonPath
                 match tryReadJsonKey txt with
                 | Some hexValue ->
                     let b = Crypto.decodeHexKey hexValue
@@ -52,13 +61,11 @@ module KeyDiscovery =
     /// `Decrypter._encryptionKey` containing hex bytes. Captures common
     /// shapes used by rpg_core.js and plugin authors.
     let tryJsScan (jsPath: string) : Result =
-        if not (System.IO.File.Exists jsPath) then
+        if not (File.Exists jsPath) then
             NotFound (sprintf "no file at %s" jsPath)
         else
             try
-                let txt = System.IO.File.ReadAllText jsPath
-                // Push the most-common patterns in priority order. Each
-                // pattern returns Option<string> to take the first hit.
+                let txt = File.ReadAllText jsPath
                 let pat1 = System.Text.RegularExpressions.Regex(
                             @"Decrypter\._encryptionKey\s*=\s*\[""\\x""\s*,\s*""([0-9a-fA-F]{32})""",
                             System.Text.RegularExpressions.RegexOptions.IgnoreCase)
@@ -79,51 +86,78 @@ module KeyDiscovery =
             with
             | ex -> NotFound (sprintf "js scan error: %s" ex.Message)
 
+    let private isFound = function Found _ -> true | _ -> false
+
     /// Discover a key using the full priority order:
-    ///   System.json → rpg_core.js → other *.js.
-    /// Returns the first hit with its source-string for the log.
+    ///   System.json → rpg_core.js → other *.js under <game_dir>/www/js/.
     let discover (gameDir: string) : Result =
-        let wwwJs = System.IO.Path.Combine(gameDir, "www", "js")
-        let systemJson = System.IO.Path.Combine(wwwJs, "System.json")
+        let wwwJs = Path.Combine(gameDir, "www", "js")
+        let systemJson = Path.Combine(wwwJs, "System.json")
         match trySystemJson systemJson with
         | Found _ as r -> r
         | NotFound _ ->
-            let rpgCore = System.IO.Path.Combine(wwwJs, "rpg_core.js")
+            let rpgCore = Path.Combine(wwwJs, "rpg_core.js")
             match tryJsScan rpgCore with
             | Found _ as r -> r
             | NotFound _ ->
-                if not (System.IO.Directory.Exists wwwJs) then
+                if not (Directory.Exists wwwJs) then
                     NotFound "no www/js/ directory in game_dir"
                 else
                     let mutable found = NotFound "no encryption key found in www/js"
-                    for f in System.IO.Directory.EnumerateFiles(wwwJs, "*.js") do
+                    for f in Directory.EnumerateFiles(wwwJs, "*.js") do
                         match tryJsScan f with
-                        | Found _ as r ->
-                            found <- r
+                        | Found _ as r -> found <- r
                         | NotFound _ -> ()
                     found
 
-    /// Discover with a user-supplied wordlist — try each in order, first
-    /// decode of System.json that succeeds wins. Useful when key has
-    /// been rotated between engine versions.
+    /// Locate the first reasonable MV/MZ encrypted asset in `game_dir`
+    /// that we can use to validate a candidate key against real cipher.
+    let private firstEncryptedSample (gameDir: string) : byte[] option =
+        let candidates : string list =
+            [ Path.Combine(gameDir, "www", "img")
+              Path.Combine(gameDir, "www", "audio")
+              gameDir ]
+        let mutable bytes : byte[] option = None
+        let mutable idx = 0
+        while idx < List.length candidates && Option.isNone bytes do
+            let d = candidates.[idx]
+            if Directory.Exists d then
+                for ext in [| ".png_"; ".ogg_"; ".m4a_"; ".rpgmvp"; ".rpgmvo"; ".rpgmvm" |] do
+                    match Directory.EnumerateFiles(d, "*" + ext, SearchOption.AllDirectories)
+                          |> Seq.tryHead with
+                    | Some p ->
+                        try
+                            let raw = File.ReadAllBytes p
+                            if raw.Length >= 16 then
+                                bytes <- Some raw[..15]
+                                idx <- List.length candidates
+                        with | _ -> ()
+                    | None -> ()
+            idx <- idx + 1
+        bytes
+
+    /// Try each candidate (32-char hex string, one per line in the
+    /// wordlist file) against the first encrypted asset in `game_dir`.
+    /// First valid candidate wins.
     let discoverWithWordlist (gameDir: string) (wordlist: string[]) : Result =
-        let wwwJs = System.IO.Path.Combine(gameDir, "www", "js")
-        let systemJson = System.IO.Path.Combine(wwwJs, "System.json")
-        // First try System.json with the user's keys (in case the game
-        // ships a key in a non-standard field).
-        let mutable answer : Result = NotFound "no key candidate matched"
-        for k in wordlist do
-            match trySystemJson systemJson with
-            | NotFound _ -> ()
-            | Found _ as r -> answer <- r
-        if not (match answer with Found _ -> true | _ -> false) then
-            for path in
-                [ System.IO.Path.Combine(wwwJs, "rpg_core.js") ]
-                @ (if System.IO.Directory.Exists wwwJs
-                    then Seq.toList (System.IO.Directory.EnumerateFiles(wwwJs, "*.js"))
-                    else []) do
-                if not (match answer with Found _ -> true | _ -> false) then
-                    match tryJsScan path with
-                    | NotFound _ -> ()
-                    | Found _ as r -> answer <- r
-        answer
+        if wordlist = [||] || Array.isEmpty wordlist then
+            NotFound "wordlist is empty"
+        else
+            match firstEncryptedSample gameDir with
+            | None ->
+                NotFound "no encrypted asset to validate wordlist against"
+            | Some sample ->
+                let mutable answer = NotFound "no candidate in wordlist matched"
+                for raw in wordlist do
+                    if not (isFound answer) then
+                        let trimmed = raw.Trim()
+                        if trimmed.Length = 32 then
+                            try
+                                let candidateKey = Crypto.decodeHexKey trimmed
+                                let transformed = Crypto.xorTransform candidateKey sample
+                                if Crypto.looksLikePlaintext transformed then
+                                    answer <-
+                                        Found(candidateKey,
+                                              sprintf "--password-file candidate '%s' (validated against cipher sample)" trimmed)
+                            with | _ -> ()
+                answer

@@ -88,23 +88,27 @@ apply MV decryption per entry.
 
 ## 5. RGSSAD walking
 
-XP/VX/VXAce archives are simpler: file entries are keyed by offset/size
-table, but the *filenames* are XOR-obfuscated with a key derived from the
+XP / VX / VX Ace archives: file entries are keyed by offset/size table;
+the *filenames* are XOR-obfuscated with a key derived from the
 archive's own header.
 
 Concretely:
 
-- Header magic: `"RGSSAD\x00"` (7 bytes).
-- Then a version byte: `0x01` (XP), `0x02` (VX), `0x03` (VX Ace).
-- Then entries:
-  - For XP (`0x01`): each entry is `<size_le:u32><offset_le:u32><name_len:u32><name_bytes:...zip?>`.
-    The `name_bytes` are XOR-obfuscated with the RGSSAD magic, not the key
-    we control. We decode it on the fly using the magic bytes as the key.
-  - For VX/VXAce (`0x02`/`0x03`): each entry is `<name_len:u32><name_bytes:...><size:u32><offset:u32>`.
-    Same XOR on `name_bytes` using the RGSSAD magic.
+- Header magic: `"RGSSAD\x00"` (7 bytes) + 1 version byte (`0x01` XP,
+  `0x02` VX, `0x03` VX Ace).
+- Entry layouts (per the publicly documented algorithm in
+  Petschko/RPG-Maker-MV-Decrypter's `Encryption.java`, MIT-licensed):
 
-The *file contents* themselves are not encrypted — only the *filenames*
-are. Standard zip-deflate compression is applied separately.
+  - **XP / VX** (`0x01` / `0x02`): each entry is
+    `size(4) | offset(4) | name_len(4) | name(name_len)`
+    `name` is XOR-obfuscated with the RGSSAD magic.
+  - **VX Ace** (`0x03`): each entry is
+    `size(4) | name_len(4) | name(name_len) | offset(4)`.
+    Same XOR on `name` using the RGSSAD magic.
+
+The payload bytes themselves are not encrypted; standard zlib-deflate
+compression is applied separately. Our walker exposes a table of
+contents; payload inflate is left to the user's toolchain.
 
 ---
 
