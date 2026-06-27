@@ -89,26 +89,50 @@ module KeyDiscovery =
     let private isFound = function Found _ -> true | _ -> false
 
     /// Discover a key using the full priority order:
-    ///   System.json → rpg_core.js → other *.js under <game_dir>/www/js/.
+    ///   * RPG Maker MV ships in two layouts:
+    ///       - source / editor:    <game>/www/js/System.json
+    ///       - deployed distribution: <game>/www/data/System.json
+    ///     Most actual game distributions (NW.js, Steam, itch.io) use
+    ///     the second layout; we try both before giving up.
+    ///   * For rpg_core.js (where the engine also embeds the key):
+    ///       <game>/www/js/rpg_core.js — typically stripped in deploys.
+    ///       We fall through to scanning sibling *.js files.
+    ///   * Then a sweep of all *.js files under both js/ and (rarely)
+    ///     a Plugins folder.
     let discover (gameDir: string) : Result =
-        let wwwJs = Path.Combine(gameDir, "www", "js")
-        let systemJson = Path.Combine(wwwJs, "System.json")
-        match trySystemJson systemJson with
+        let wwwRoot     = Path.Combine(gameDir, "www")
+        let wwwJs       = Path.Combine(wwwRoot, "js")
+        let wwwJsSystem = Path.Combine(wwwJs, "System.json")
+        let wwwRpgCore  = Path.Combine(wwwJs, "rpg_core.js")
+        let wwwDataSys  = Path.Combine(wwwRoot, "data", "System.json")
+
+        match trySystemJson wwwJsSystem with
         | Found _ as r -> r
         | NotFound _ ->
-            let rpgCore = Path.Combine(wwwJs, "rpg_core.js")
-            match tryJsScan rpgCore with
+            match trySystemJson wwwDataSys with
             | Found _ as r -> r
             | NotFound _ ->
-                if not (Directory.Exists wwwJs) then
-                    NotFound "no www/js/ directory in game_dir"
-                else
-                    let mutable found = NotFound "no encryption key found in www/js"
-                    for f in Directory.EnumerateFiles(wwwJs, "*.js") do
-                        match tryJsScan f with
-                        | Found _ as r -> found <- r
-                        | NotFound _ -> ()
-                    found
+                match tryJsScan wwwRpgCore with
+                | Found _ as r -> r
+                | NotFound _ ->
+                    if not (Directory.Exists wwwRoot) then
+                        NotFound "no www/ directory in game_dir"
+                    else
+                        let mutable found = NotFound "no encryption key found in www/js or www/data"
+                        // Try sibling *.js in www/js.
+                        if Directory.Exists wwwJs then
+                            for f in Directory.EnumerateFiles(wwwJs, "*.js") do
+                                match tryJsScan f with
+                                | Found _ as r -> found <- r
+                                | NotFound _ -> ()
+                        // Final sweep: any *.js anywhere under www/ (catch
+                        // unusual plugin folders shipped with some games).
+                        if not (isFound found) then
+                            for f in Directory.EnumerateFiles(wwwRoot, "*.js", SearchOption.AllDirectories) do
+                                match tryJsScan f with
+                                | Found _ as r -> found <- r
+                                | NotFound _ -> ()
+                        found
 
     /// Locate the first reasonable MV/MZ encrypted asset in `game_dir`
     /// that we can use to validate a candidate key against real cipher.
