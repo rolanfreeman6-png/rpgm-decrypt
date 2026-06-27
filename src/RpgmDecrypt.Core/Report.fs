@@ -16,6 +16,13 @@ module Report =
         File.WriteAllBytes(path, bytes)
 
     let private copyThrough (src: string) (dst: string) : unit =
+        // Mirror writeAllBytes: ensure parent dir is created first.
+        // File.Copy requires the destination directory to exist; without
+        // this, plaintext pass-through files (e.g. .png) on real shipped
+        // MV/MZ games were failing with DirectoryNotFoundException.
+        let dir = Path.GetDirectoryName dst
+        if not (String.IsNullOrEmpty dir) && not (Directory.Exists dir) then
+            Directory.CreateDirectory dir |> ignore
         File.Copy(src, dst, overwrite = true)
 
     let private stripEncryptionExtension (path: string) : string =

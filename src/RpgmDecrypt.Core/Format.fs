@@ -32,6 +32,12 @@ module Dispatch =
             | ".pak"    -> Some MZ
             | ".png_" | ".ogg_" | ".m4a_" -> Some MV
             | ".rpgmvp" | ".rpgmvo" | ".rpgmvm" -> Some MV
+            // Plaintext PNG/OGG/M4A/WebP/JPG are still MV assets — by real
+            // shipped-game definition. They are NOT encrypted, so MV.decrypt
+            // returns the Plaintext outcome which Report.run treats as a
+            // pass-through copy. Missing these meant walker filtered out
+            // pass-through files entirely despite reporting them as MV.
+            | ".png" | ".ogg" | ".m4a" | ".webp" | ".jpg" -> Some MV
             | _ ->
                 // No recognised extension — try magic-byte inspection.
                 if Crypto.isRgssadMagic firstBytes then
