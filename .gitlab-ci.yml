@@ -1,0 +1,38 @@
+# GitLab CI for rpgm-decrypt.
+#
+# Mirrors the GitHub Actions build+test gate on a free gitlab.com Linux runner
+# (Docker, .NET 10 SDK image). This gives the Linux cross-platform signal;
+# Windows/macOS coverage stays on GitHub Actions / local runs.
+#
+# TreatWarningsAsErrors is enforced both by src/Directory.Build.props and the
+# explicit -p: flag below, matching the GitHub `test` job.
+
+stages:
+  - test
+  - publish
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+default:
+  image: mcr.microsoft.com/dotnet/sdk:10.0
+
+build-test:
+  stage: test
+  script:
+    - dotnet restore src/RpgmDecrypt.slnx
+    - dotnet build src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
+    - dotnet run --project src/RpgmDecrypt.Tests -c Release --no-build
+
+publish-linux:
+  stage: publish
+  needs: ["build-test"]
+  script:
+    - dotnet publish src/RpgmDecrypt.Cli -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:StripSymbols=true -o artifacts/linux-x64
+    - chmod +x artifacts/linux-x64/rpgm-decrypt
+    - ./artifacts/linux-x64/rpgm-decrypt --version
+  artifacts:
+    paths:
+      - artifacts/linux-x64/rpgm-decrypt
+    expire_in: 1 week
