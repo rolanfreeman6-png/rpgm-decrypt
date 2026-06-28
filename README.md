@@ -48,8 +48,8 @@ either GCC+MSYS or WSL.
 We chose **F#** instead. F# shares OCaml's syntax heritage, its algebraic
 data types (`type Format = XP | VX | VXAce | MV | MZ`), its `match`-with-
 exhaustiveness-check, its immutability-by-default. Compile to a single
-self-contained .NET 10 Native AOT binary. The MVP code maps 1:1 to OCaml —
-if/when we port, it's mechanical.
+self-contained .NET 10 binary (single-file publish, runtime bundled). The
+MVP code maps 1:1 to OCaml — if/when we port, it's mechanical.
 
 ## What it does
 
@@ -70,6 +70,7 @@ look for `*.rgssad` / `*.rgss2a` / `*.rgss3a`; MV/MZ look for `www/img/`,
 | ----------------------------- | ------------------ | -------------------------------------------------------------------- |
 | `--password-file <path>`      | —                  | Newline-separated list of candidate keys. Try in order, first wins. |
 | `--password <hex>`            | —                  | One key, 32 hex chars (16 bytes).                                    |
+| `--vxace-seed <8hex>`         | —                  | RPG Maker VX Ace master-seed (8 hex chars), in place of auto key.    |
 | `--log-format human\|json`    | `human`            | Stderr log format. `json` = NDJSON, one event per line.              |
 | `--report-format human\|json` | `human`            | Stdout final report format.                                          |
 | `--dry-run`                   | off                | Walk + detect + classify, but do not write any output file.          |
@@ -85,19 +86,21 @@ look for `*.rgssad` / `*.rgss2a` / `*.rgss3a`; MV/MZ look for `www/img/`,
 | 1    | Internal error (panic, uncaught exception) — please report.    |
 | 2    | Usage error (bad args, missing game_dir).                      |
 | 3    | I/O error (cannot read game_dir, cannot write out_dir).        |
-| 4    | No supported / recognised files found in game_dir.            |
-| 5    | Partial: some decrypted, some failed — see `--report-format`. |
+| 4    | No encryption key could be recovered.                         |
+| 5    | Partial: at least one input failed to decrypt — see `--report-format`. |
 
 ### Auto key-discovery
 
-When no `--password-file` is supplied, rpgm-decrypt walks `<game_dir>/www/js/`:
+When no key flag is supplied, rpgm-decrypt looks under `<game_dir>/www/`:
 
-1. **System.json** — read `encryptionKey` (hex string), decode 16 bytes.
-2. **rpg_core.js** — scan for an assignment to `_encryptionKey` (regex
-   match against the live game engine), extract either a hex literal or
-   a string-array of byte values.
+1. **`www/js/System.json`** then **`www/data/System.json`** (deployed layout)
+   — read `encryptionKey` (hex string), decode 16 bytes.
+2. **`www/js/rpg_core.js`** — regex-scan for a 32-hex-char `_encryptionKey`
+   literal (we never evaluate JavaScript, only extract the literal).
+3. **`*.js` sweep** — every `*.js` under `www/js`, then under all of `www/`.
 
-If neither yields a key, you must supply `--password-file` or `--password`.
+If none yields a key, supply `--password <hex32>`, `--password-file <list>`,
+or `--vxace-seed <8hex>` (VX Ace).
 
 ## Build
 
@@ -131,7 +134,8 @@ src/
     Format.Mz.fs        .pak = ZIP + per-entry MV scheme
     Format.Xp.fs        .rgssad v1 walker (size, offset, name_len, name)
     Format.Vx.fs        .rgssad v2 walker (same layout as XP)
-    Format.VxAce.fs     .rgss3a walker (size, name_len, name, offset)
+    Format.VxAce.fs     .rgss3a walker + payload decrypt
+                         (offset, size, entry_key, name_len, name)
     Walk.fs             Recursive file-system walker
     Log.fs              NDJSON + human output
     Report.fs           Final per-run summary, mirror-tree write
@@ -147,9 +151,9 @@ $ dotnet run --project src/RpgmDecrypt.Tests -c Release
 ```
 
 The test project is an executable (not a library) that runs an
-in-process test runner over the 7 test modules. There is no xUnit / NUnit
-dependency — see `src/RpgmDecrypt.Tests/TestFramework.fs` for the
-~100-LoC runner.
+in-process test runner over the 10 test modules (101 assertions). There is
+no xUnit / NUnit dependency — see `src/RpgmDecrypt.Tests/TestFramework.fs`
+for the ~100-LoC runner.
 
 Fixture bytes are generated at test-time inside each `register ()` block.
 We deliberately do not commit real RPG Maker game bytes to the repo

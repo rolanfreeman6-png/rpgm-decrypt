@@ -14,6 +14,7 @@
     <Compile Include="VxAceKey.fs" />
     <Compile Include="Format.Mv.fs" />
     <Compile Include="Format.Mz.fs" />
+    <Compile Include="RgssadCore.fs" />
     <Compile Include="Format.Xp.fs" />
     <Compile Include="Format.Vx.fs" />
     <Compile Include="Format.VxAce.fs" />

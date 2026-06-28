@@ -8,6 +8,24 @@ module Report =
     open System
     open System.IO
 
+    /// Resolve `rel` underneath `outDir`, rejecting anything that escapes it
+    /// (absolute paths, drive roots, `..` traversal) — Zip-Slip defence for
+    /// untrusted archive entry names (MZ `.pak`, VX Ace `.rgss3a`). Returns
+    /// None when the entry would land outside `outDir`.
+    let safeJoin (outDir: string) (rel: string) : string option =
+        let root = Path.GetFullPath outDir
+        let combined =
+            try Some(Path.GetFullPath(Path.Combine(root, rel)))
+            with _ -> None
+        match combined with
+        | None -> None
+        | Some full ->
+            let rootSep =
+                if root.EndsWith(string Path.DirectorySeparatorChar) then root
+                else root + string Path.DirectorySeparatorChar
+            if full = root || full.StartsWith(rootSep, StringComparison.Ordinal) then Some full
+            else None
+
     /// Mirror-directory write. Creates parent dirs as needed.
     let private writeAllBytes (path: string) (bytes: byte[]) : unit =
         let dir = Path.GetDirectoryName path
@@ -68,14 +86,21 @@ module Report =
                     let outputRel =
                         e.Name.Replace('\\', Path.DirectorySeparatorChar)
                            .Replace('/', Path.DirectorySeparatorChar)
-                    let outputPath = Path.Combine(cfg.OutDir, outputRel)
-                    if not cfg.DryRun then
-                        let dir = Path.GetDirectoryName outputPath
-                        if not (String.IsNullOrEmpty dir) && not (Directory.Exists dir) then
-                            Directory.CreateDirectory dir |> ignore
-                        File.WriteAllBytes(outputPath, plain)
-                    summary <- RunSummary.tally (Decrypted(outputRel, int64 plain.Length, VXAce)) summary
-                    cfg.OnEvent (Log.Decrypt(dAbsPath, outputPath, "VXAce"))
+                    match safeJoin cfg.OutDir outputRel with
+                    | None ->
+                        // Zip-Slip: entry name escapes OutDir — refuse to write.
+                        failedHere <- true
+                        let why = sprintf "unsafe entry path blocked (traversal): %s" e.Name
+                        summary <- RunSummary.tally (Failed(e.Name, why)) summary
+                        cfg.OnEvent (Log.Failed(dAbsPath, why))
+                    | Some outputPath ->
+                        if not cfg.DryRun then
+                            let dir = Path.GetDirectoryName outputPath
+                            if not (String.IsNullOrEmpty dir) && not (Directory.Exists dir) then
+                                Directory.CreateDirectory dir |> ignore
+                            File.WriteAllBytes(outputPath, plain)
+                        summary <- RunSummary.tally (Decrypted(outputRel, int64 plain.Length, VXAce)) summary
+                        cfg.OnEvent (Log.Decrypt(dAbsPath, outputPath, "VXAce"))
                 with | ex ->
                     failedHere <- true
                     summary <- RunSummary.tally (Failed(e.Name, sprintf "decode error: %s" ex.Message)) summary
@@ -100,7 +125,10 @@ module Report =
         for d in detected do
             cfg.OnEvent (Log.Walked(d.AbsPath, d.SizeBytes))
             cfg.OnEvent (Log.Detected(d.AbsPath, Format.toString d.Format))
-            let outRel = renameByKind d.RelPath (match d.Format with MV -> "bin" | MZ -> "bin" | _ -> "bin")
+            // The encrypted extension is corrected per-file later (renameByKind
+            // with the detected kind); here the mirror path is just the input's
+            // relative path. (Previously a match that always yielded "bin".)
+            let outRel = d.RelPath
             let outAbs = Path.Combine(cfg.OutDir, outRel)
             match d.Format with
             | MV ->
@@ -128,13 +156,22 @@ module Report =
                     let dirPart = Path.GetDirectoryName outRel
                     let safeDir = if String.IsNullOrEmpty dirPart then "." else dirPart
                     for (entryName, bytes, kind) in entries do
+                        // NB: argument order matters — `renameByKind relPath kind`.
+                        // The earlier `combined |> renameByKind kind` bound relPath
+                        // to the *kind* string, so every entry collapsed to
+                        // "<outDir>/png" (last write wins, paths lost). I-5.
                         let entryOutRel =
-                            Path.Combine(safeDir, entryName)
-                            |> renameByKind kind
-                        let entryOutAbs = Path.Combine(cfg.OutDir, entryOutRel)
-                        if not cfg.DryRun then writeAllBytes entryOutAbs bytes
-                        summary <- RunSummary.tally (Decrypted(entryOutRel, int64 bytes.Length, MZ)) summary
-                        cfg.OnEvent (Log.Decrypt(d.AbsPath, entryOutAbs, "MZ"))
+                            renameByKind (Path.Combine(safeDir, entryName)) kind
+                        match safeJoin cfg.OutDir entryOutRel with
+                        | None ->
+                            // Zip-Slip: ZIP entry name escapes OutDir — refuse to write.
+                            let why = sprintf "unsafe entry path blocked (traversal): %s" entryName
+                            summary <- RunSummary.tally (Failed(d.RelPath, why)) summary
+                            cfg.OnEvent (Log.Failed(d.AbsPath, why))
+                        | Some entryOutAbs ->
+                            if not cfg.DryRun then writeAllBytes entryOutAbs bytes
+                            summary <- RunSummary.tally (Decrypted(entryOutRel, int64 bytes.Length, MZ)) summary
+                            cfg.OnEvent (Log.Decrypt(d.AbsPath, entryOutAbs, "MZ"))
                 | Error msg ->
                     summary <- RunSummary.tally (Failed(d.RelPath, msg)) summary
                     cfg.OnEvent (Log.Failed(d.AbsPath, msg))

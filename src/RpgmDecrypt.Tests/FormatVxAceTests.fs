@@ -140,23 +140,30 @@ let register () : unit =
         else Test.isFalse (sprintf "expected 0x%X, got 0x%X" (0x01020304u * 9u + 3u) r1) true
         r1 |> ignore)
 
-    Test.register "VxAce.parse: negative-truncated-name_len -> Truncated, no crash" (fun () ->
-        // Regression test: on 2026-06-27 against F:\fr\g\HC_EP1\Game.rgss3a
-        // (real RPG Maker VX Ace shipped game, 39 MB, 1914 entries) the parser
-        // threw ArgumentException("count=-1110938460") because reading a real
-        // uint32 name_len field cast to int32 yielded a negative value;
-        // we now guard explicitly.
+    Test.register "VxAce.parse: negative name_len reaches guard -> Truncated, no crash" (fun () ->
+        // Regression: on 2026-06-27 against F:\fr\g\HC_EP1\Game.rgss3a a real
+        // uint32 name_len cast to int32 went negative and threw inside
+        // Array.zeroCreate. The earlier fixture was only 24 bytes, so parse
+        // exited via the `pos + 16 > len` short-buffer path and never reached
+        // the nLenInt < 0 guard it claimed to test. This buffer is 28 bytes —
+        // header(8) + seed(4) + one 16-byte entry header — so the guard fires.
         let header : byte[] =
             [| 0x52uy; 0x47uy; 0x53uy; 0x53uy; 0x41uy; 0x44uy; 0x00uy; 0x03uy |]
-        let buf = Array.zeroCreate<byte> (header.Length + 16)
+        // seed = 0 -> masterKey = 0*9+3 = 3 ; decodeUInt32 field = raw XOR 3u.
+        let masterKey = 3u
+        let buf = Array.zeroCreate<byte> 28
         Array.Copy(header, 0, buf, 0, header.Length)
-        // Skip master seed slot (4 bytes); start of first entry record.
-        // First entry: name_len(4)+= 0xFFFFFFFA which overflows to -6 in int.
-        buf.[header.Length + 4] <- 0xFAuy
-        buf.[header.Length + 5] <- 0xFFuy
-        buf.[header.Length + 6] <- 0xFFuy
-        buf.[header.Length + 7] <- 0xFFuy
-        // No actual name bytes (16 bytes total length; loop expects 16 + name_len)
+        // seed bytes [8..11] left zero
+        let writeEncU32 (pos: int) (decoded: uint32) =
+            let raw = decoded ^^^ masterKey
+            buf.[pos]     <- byte raw
+            buf.[pos + 1] <- byte (raw >>> 8)
+            buf.[pos + 2] <- byte (raw >>> 16)
+            buf.[pos + 3] <- byte (raw >>> 24)
+        writeEncU32 12 0x20u          // offset (nonzero -> not the end sentinel)
+        writeEncU32 16 0x10u          // size
+        writeEncU32 20 0u             // per-entry key
+        writeEncU32 24 0xFFFFFFFAu    // name_len -> int32 = -6 (negative)
         match VxAce.parse buf with
         | Error VxAce.Truncated -> Test.isTrue "got Truncated" true
         | Error e -> Test.isFalse (sprintf "expected Truncated, got %A" e) true

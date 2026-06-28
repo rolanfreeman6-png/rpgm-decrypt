@@ -1,0 +1,13 @@
+<Project>
+
+  <!--
+    Shared build settings for all projects under src/.
+    TreatWarningsAsErrors is applied here (not only via the CI `-p:` flag) so a
+    plain local `dotnet build` fails on the same warnings CI rejects — this is
+    what would have caught the the CLI module DU-case typo (FS0049/FS0026) locally.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

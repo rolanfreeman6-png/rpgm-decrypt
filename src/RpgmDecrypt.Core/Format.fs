@@ -26,6 +26,7 @@ module Dispatch =
                     match firstBytes.[7] with
                     | 0x01uy -> Some XP
                     | 0x02uy -> Some VX
+                    | 0x03uy -> Some VXAce     // .rgssad carrying a v3 header
                     | _      -> Some XP        // legacy default
             | ".rgss2a" -> Some VX
             | ".rgss3a" -> Some VXAce
@@ -57,12 +58,13 @@ module Dispatch =
     let decryptSingle (key: byte[]) (absPath: string) : Result<byte[] * string * bool, string> =
         try
             let bytes = File.ReadAllBytes absPath
-            let out, kind = Mv.decryptBytes key bytes
-            let actuallyDecrypted =
+            // One decrypt pass; derive both the output and the was-decrypted
+            // flag from the single DecryptOutcome (previously decrypted twice).
+            let out, kind, actuallyDecrypted =
                 match Mv.decrypt key bytes with
-                | Mv.Plaintext _ -> false
-                | Mv.Decrypted _ -> true
-                | Mv.Unsure _ -> true
+                | Mv.Plaintext(k, b) -> b, k, false
+                | Mv.Decrypted(k, b) -> b, k, true
+                | Mv.Unsure b        -> b, "bin", true
             Ok(out, kind, actuallyDecrypted)
         with
         | ex -> Error ex.Message
