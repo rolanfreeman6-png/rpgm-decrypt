@@ -18,6 +18,7 @@ include:
 
 stages:
   - test
+  - fuzz
   - publish
 
 variables:
@@ -33,6 +34,56 @@ build-test:
     - dotnet restore src/RpgmDecrypt.slnx
     - dotnet build src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
     - dotnet run --project src/RpgmDecrypt.Tests -c Release --no-build
+
+# ---- OCaml port (ocaml/) — build + parity tests on a Linux OCaml toolchain --
+ocaml-build-test:
+  stage: test
+  image: ubuntu:26.04
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev
+  script:
+    - cd ocaml
+    - dune build --profile release
+    - dune exec --profile release test/test.exe
+
+# ---- Coverage-guided fuzzing of the OCaml parsers --------------------------
+# Runs the reliable in-process fuzzer, then a real coverage-guided afl-fuzz
+# campaign against the -afl-instrument'd target (the CI runner has the internet
+# the local WSL lacked, so it can install afl++). allow_failure so afl env
+# quirks never block the pipeline; a real crash still surfaces.
+ocaml-fuzz:
+  stage: fuzz
+  image: ubuntu:26.04
+  needs: ["ocaml-build-test"]
+  allow_failure: true
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+    AFL_SKIP_BIN_CHECK: "1"
+    AFL_SKIP_CPUFREQ: "1"
+    AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: "1"
+    AFL_NO_AFFINITY: "1"
+    AFL_CRASH_EXITCODE: "2"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev afl++
+  script:
+    - cd ocaml
+    - dune build --profile release fuzz/fuzz.exe
+    - echo "=== in-process fuzz (reliable, 30s) ==="
+    - FUZZ_SECONDS=30 dune exec --profile release fuzz/fuzz.exe
+    - echo "=== coverage-guided afl-fuzz (90s) ==="
+    - mkdir -p seeds
+    - printf 'RGSSAD\x00\x01' > seeds/s1
+    - printf 'RGSSAD\x00\x02' > seeds/s2
+    - printf 'RGSSAD\x00\x03\x00\x00\x00\x00' > seeds/s3
+    - printf 'PK\x03\x04' > seeds/s4
+    - printf '\x89PNG\r\n\x1a\n' > seeds/s5
+    - timeout 120 afl-fuzz -V 90 -m none -i seeds -o aflout -- ./_build/default/fuzz/fuzz.exe @@ || echo "afl finished"
+    - grep -E "execs_done|corpus_count|saved_crashes|execs_per_sec" aflout/default/fuzzer_stats 2>/dev/null || true
+    - 'C=$(ls aflout/default/crashes 2>/dev/null | grep -v README | wc -l); echo "afl crashes=$C"; test "$C" = "0"'
 
 publish-linux:
   stage: publish
