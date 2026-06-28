@@ -1,0 +1,7 @@
+; AFL-instrumented fuzz target. Built with -afl-instrument so afl-fuzz gets
+; coverage feedback (coverage-guided). Runs standalone too (instrumentation is
+; a no-op when not under afl-fuzz).
+(executable
+ (name fuzz)
+ (libraries rpgm unix)
+ (ocamlopt_flags (:standard -afl-instrument)))
