@@ -219,12 +219,119 @@ let test_report () =
   check "zipslip counted failed" (s2.Types.failed_count >= 1);
   check "zipslip nothing escaped" (not (Sys.file_exists (Filename.concat root "evil.png")))
 
+(* ---- helpers for the expanded suite ---------------------------------- *)
+let contains hay needle =
+  let hl = String.length hay and nl = String.length needle in
+  let rec go i = i + nl <= hl && (String.sub hay i nl = needle || go (i + 1)) in
+  nl = 0 || go 0
+
+let write_tmp suffix (content : bytes) =
+  let p = Filename.temp_file "rpgm" suffix in
+  Io.write_file p content;
+  p
+
+(* ---- crypto extras + choose_output_extension ------------------------- *)
+let test_crypto_more () =
+  check "looksLikePlaintext webp"
+    (Crypto.looks_like_plaintext (Bytes.of_string "RIFF\x00\x00\x00\x00WEBPxxxx"));
+  check "looksLikePlaintext m4a"
+    (Crypto.looks_like_plaintext (Bytes.of_string "\x00\x00\x00\x18ftypM4A "));
+  check "zero_fill clears"
+    (let b = Bytes.of_string "abc" in
+     Crypto.zero_fill b;
+     Bytes.equal b (Bytes.make 3 '\000'));
+  check "chooseExt png_ bin" (Dispatch.choose_output_extension ".png_" "bin" = ".png");
+  check "chooseExt webp kind" (Dispatch.choose_output_extension ".png_" "webp" = ".webp");
+  check "chooseExt unknown" (Dispatch.choose_output_extension ".xyz" "bin" = ".bin")
+
+(* ---- Dispatch.classify (extension + magic) --------------------------- *)
+let test_classify () =
+  let key = bytes_of_hex "deadbeef00112233445566778899aabb" in
+  let png_ = write_tmp ".png_" (Crypto.xor_transform key (bytes_of_hex "89504E470D0A1A0A0000000D49484452")) in
+  check "classify .png_ -> MV" (Dispatch.classify png_ = Some Types.MV); Sys.remove png_;
+  let png = write_tmp ".png" (bytes_of_hex "89504E470D0A1A0A0000000D49484452") in
+  check "classify .png -> MV" (Dispatch.classify png = Some Types.MV); Sys.remove png;
+  let r1 = write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01") in
+  check "classify .rgssad v1 -> XP" (Dispatch.classify r1 = Some Types.XP); Sys.remove r1;
+  let r2 = write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02") in
+  check "classify .rgssad v2 -> VX" (Dispatch.classify r2 = Some Types.VX); Sys.remove r2;
+  let r3 = write_tmp ".rgss3a" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x03\x00\x00\x00\x00") in
+  check "classify .rgss3a -> VXAce" (Dispatch.classify r3 = Some Types.VXAce); Sys.remove r3;
+  let zp = write_tmp ".bin" (Bytes.of_string "PK\x03\x04stuffstuff") in
+  check "classify zip magic -> MZ" (Dispatch.classify zp = Some Types.MZ); Sys.remove zp;
+  let no = write_tmp ".bin" (Bytes.of_string "not a game file here") in
+  check "classify unknown -> None" (Dispatch.classify no = None); Sys.remove no
+
+(* ---- KeyDiscovery ---------------------------------------------------- *)
+let test_key_discovery () =
+  let root = Filename.temp_dir "rpgm" "kd" in
+  let wwwjs = Filename.concat (Filename.concat root "www") "js" in
+  let wwwimg = Filename.concat (Filename.concat root "www") "img" in
+  Report.mkdir_p wwwjs;
+  Report.mkdir_p wwwimg;
+  Io.write_file (Filename.concat wwwjs "System.json")
+    (Bytes.of_string {|{ "encryptionKey": "deadbeef00112233445566778899aabb" }|});
+  (match Key_discovery.discover root with
+   | Key_discovery.Found (b, src) ->
+       check "kd found b0" (Bytes.get b 0 = '\xde');
+       check "kd source mentions System.json" (contains src "System.json")
+   | _ -> check "kd discover found" false);
+  let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
+  let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452" in
+  Io.write_file (Filename.concat wwwimg "Hero.png_") (Crypto.xor_transform key png);
+  (match Key_discovery.discover_with_wordlist root
+           [| "00000000000000000000000000000000"; "deadbeef00112233445566778899aabb" |] with
+   | Key_discovery.Found (b, _) -> check_bytes "kd wordlist correct key" key b
+   | _ -> check "kd wordlist found" false);
+  check "kd empty wordlist rejected"
+    (match Key_discovery.discover_with_wordlist root [||] with
+     | Key_discovery.NotFound _ -> true | _ -> false)
+
+(* ---- MZ multi-entry order ------------------------------------------- *)
+let test_mz_multi () =
+  let key = bytes_of_hex "DEADBEEFCAFEBABE0102030405060708" in
+  let png = bytes_of_hex "89504E470D0A1A0AAABBCCDDEEFF1122" in
+  let pak = Filename.temp_file "rpgm" ".pak" in
+  let z = Zip.open_out pak in
+  Zip.add_entry (Bytes.to_string (Crypto.xor_transform key png)) z "www/img/a.png";
+  Zip.add_entry (Bytes.to_string (Crypto.xor_transform key png)) z "www/img/b.png";
+  Zip.close_out z;
+  (match Mz.open_pak pak with
+   | Ok zf ->
+       (match Mz.decrypt_all key zf with
+        | Ok es ->
+            check "mz 2 entries" (List.length es = 2);
+            check "mz order a,b"
+              (match es with
+               | a :: b :: _ -> a.Mz.entry_name = "www/img/a.png" && b.Mz.entry_name = "www/img/b.png"
+               | _ -> false);
+            check_bytes "mz entry a bytes" png (List.hd es).Mz.bytes
+        | _ -> check "mz multi decryptAll" false);
+       (try Zip.close_in zf with _ -> ())
+   | _ -> check "mz multi openPak" false);
+  Sys.remove pak
+
+(* ---- Log escape + JSON ---------------------------------------------- *)
+let test_log () =
+  check "log escape quote/backslash" (Log.escape "a\"b\\c" = "a\\\"b\\\\c");
+  check "log escape newline" (Log.escape "a\nb" = "a\\nb");
+  let s = Types.run_summary_empty 0.0 in
+  let s = { s with Types.inputs_scanned = 3; decrypted_count = 2; per_format = [ (Types.MV, 2) ] } in
+  let j = Log.summary_to_json s in
+  check "log json MV:2" (contains j "\"MV\":2");
+  check "log json scanned:3" (contains j "\"scanned\":3")
+
 let () =
   test_crypto ();
+  test_crypto_more ();
   test_mv ();
   test_xp_vx ();
+  test_classify ();
+  test_key_discovery ();
   test_vxace ();
   test_mz ();
+  test_mz_multi ();
+  test_log ();
   test_report ();
   Printf.printf "\n===== %d checks, %d passed, %d failed =====\n" !total !passed (List.length !fails);
   List.iter (fun n -> Printf.printf "  FAIL %s\n" n) (List.rev !fails);
