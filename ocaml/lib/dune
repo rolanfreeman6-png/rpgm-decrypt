@@ -1,0 +1,3 @@
+(library
+ (name rpgm)
+ (libraries zip yojson re unix))
