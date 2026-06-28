@@ -83,7 +83,7 @@ ocaml-fuzz:
     - printf '\x89PNG\r\n\x1a\n' > seeds/s5
     - timeout 120 afl-fuzz -V 90 -m none -i seeds -o aflout -- ./_build/default/fuzz/fuzz.exe @@ || echo "afl finished"
     - grep -E "execs_done|corpus_count|saved_crashes|execs_per_sec" aflout/default/fuzzer_stats 2>/dev/null || true
-    - 'C=$(ls aflout/default/crashes 2>/dev/null | grep -v README | wc -l); echo "afl crashes=$C"; test "$C" = "0"'
+    - 'CR=$(grep -E "^saved_crashes" aflout/default/fuzzer_stats 2>/dev/null | tr -cd "0-9"); echo "afl saved_crashes=${CR:-0}"; [ "${CR:-0}" = "0" ]'
 
 publish-linux:
   stage: publish
