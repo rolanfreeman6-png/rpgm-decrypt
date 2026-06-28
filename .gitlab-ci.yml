@@ -7,6 +7,15 @@
 # TreatWarningsAsErrors is enforced both by src/Directory.Build.props and the
 # explicit -p: flag below, matching the GitHub `test` job.
 
+# GitLab-managed security scanners (Ultimate). SAST analyses the source,
+# Secret Detection scans history for leaked credentials, Dependency Scanning
+# checks NuGet packages for known CVEs. Results land in Security & Compliance →
+# Vulnerability report. Each template defines its own job in the `test` stage.
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
+
 stages:
   - test
   - publish
