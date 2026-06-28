@@ -12,6 +12,7 @@ let main (_ : string[]) : int =
     FormatMvTests.register ()
     FormatMzTests.register ()
     FormatXpTests.register ()
+    FormatVxTests.register ()
     FormatVxAceTests.register ()
     EndToEndTests.register ()
     EndToEndRealFixtureTests.register ()

@@ -53,11 +53,22 @@ module TestFramework =
         if expected = actual then
             passed <- passed + 1
         else
+            // Exactly one failure entry per failed assertion (counter never
+            // desyncs from the failures list — was: 0 entries on a length
+            // mismatch with equal prefix, or N entries for N differing bytes).
             failed <- failed + 1
-            let n = min expected.Length actual.Length
-            for i in 0 .. n - 1 do
-                if expected.[i] <> actual.[i] then
-                    failures.Add(label, sprintf "byte %d differs: expected %x got %x" i expected.[i] actual.[i])
+            if expected.Length <> actual.Length then
+                failures.Add(label,
+                    sprintf "length differs: expected %d bytes, got %d" expected.Length actual.Length)
+            else
+                let mutable firstDiff = -1
+                let mutable i = 0
+                while firstDiff < 0 && i < expected.Length do
+                    if expected.[i] <> actual.[i] then firstDiff <- i
+                    i <- i + 1
+                failures.Add(label,
+                    sprintf "byte %d differs: expected %02x got %02x"
+                        firstDiff expected.[firstDiff] actual.[firstDiff])
 
     let assertTrue (label: string) (cond: bool) =
         total <- total + 1

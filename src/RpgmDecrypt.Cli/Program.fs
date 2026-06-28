@@ -4,8 +4,11 @@ open System
 open System.IO
 open RpgmDecrypt.Core
 
-let hrFmt =
-    function XP -> "XP" | VX -> "VX" | VxAce -> "VxAce" | MV -> "MV" | MZ -> "MZ"
+// Single source of truth — the broken local copy used `VxAce` (not the DU
+// case `VXAce`), which F# treats as a wildcard variable, swallowing MV/MZ
+// and mislabelling them as "VxAce" in reports (and failing the warnings-as-
+// errors CI build). Reuse the library's total mapping instead.
+let hrFmt = Format.toString
 
 let exitWith (n: int) : 'a =
     System.Environment.Exit n
@@ -159,9 +162,8 @@ let main (argv: string[]) : int =
                 ||| (uint32 seedBytes.[3] <<< 24)
             let derived = Array.zeroCreate<byte> 16
             let mutable rotatingKey = masterKey * 9u + 3u
-            let safe (b: byte) = if int b < 0 then byte (256 + int b) else b
             for i in 0 .. 15 do
-                derived.[i] <- safe (byte rotatingKey)
+                derived.[i] <- byte rotatingKey
                 rotatingKey <- rotatingKey * 7u + 3u
             KeyDiscovery.Found(derived, sprintf "--vxace-seed derived from master=0x%08X" masterKey)
         | None, None, None ->
@@ -185,7 +187,7 @@ let main (argv: string[]) : int =
         match repFmt with
         | Log.Json   -> printfn "%s" (runSummaryToJson summary)
         | Log.Human  -> printfn "%s" (runSummaryHuman summary)
-        if summary.InputsScanned = 0 then exitWith 4
-        elif summary.FailedCount = 0 then exitWith 0
-        elif summary.DecryptedCount = 0 && summary.PassedThroughCount = 0 then exitWith 5
-        else exitWith (if summary.FailedCount > 0 && summary.DecryptedCount > 0 then 5 else 0)
+        // Exit 4 is reserved for "no key recovered" (the NotFound branch above);
+        // a recovered key with zero matching files is not an error → 0.
+        if summary.FailedCount = 0 then exitWith 0
+        else exitWith 5   // partial/failed: at least one input could not be decrypted

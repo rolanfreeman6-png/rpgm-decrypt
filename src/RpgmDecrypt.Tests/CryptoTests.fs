@@ -42,3 +42,23 @@ let register () : unit =
     Test.register "Crypto.looksLikePlaintext: rejects RPGMV header" (fun () ->
         let hdr = System.Text.Encoding.ASCII.GetBytes "RPGMV3123456789012345"
         Test.isFalse "rpgmv" (Crypto.looksLikePlaintext hdr))
+
+    // ---- negative tests: invalid key inputs must be rejected, not silently
+    //      mis-decoded or crash deep inside an array primitive ----
+    Test.register "Crypto.decodeHexKey: wrong length is rejected" (fun () ->
+        let threw =
+            try Crypto.decodeHexKey "abcd" |> ignore; false
+            with | _ -> true
+        Test.isTrue "short hex throws" threw)
+
+    Test.register "Crypto.decodeHexKey: non-hex char is rejected" (fun () ->
+        let threw =
+            try Crypto.decodeHexKey "zz23456789abcdef0123456789abcdef" |> ignore; false
+            with | _ -> true
+        Test.isTrue "non-hex throws" threw)
+
+    Test.register "Crypto.xorTransform: empty key is rejected" (fun () ->
+        let threw =
+            try Crypto.xorTransform [||] [| 1uy; 2uy; 3uy |] |> ignore; false
+            with | _ -> true
+        Test.isTrue "empty key throws" threw)
