@@ -32,9 +32,8 @@ module Log =
             | c    -> sb.Append(c) |> ignore
         sb.ToString()
 
-    let private hrFmt =
-        function
-        | XP -> "XP" | VX -> "VX" | VXAce -> "VXAce" | MV -> "MV" | MZ -> "MZ"
+    // Single source of truth — see Types.fs. (Was a duplicated match.)
+    let private hrFmt = Format.toString
 
     let private summaryToJson (s: RunSummary) : string =
         let perFmt =

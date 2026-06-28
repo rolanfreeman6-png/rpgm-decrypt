@@ -40,22 +40,18 @@ module VxAceKey =
     let decodeUInt32 (cipher: uint32) (key: uint32) : uint32 =
         cipher ^^^ key
 
+    /// Extract byte `j` (0..3) of a little-endian u32 without allocating.
+    let inline private keyByte (key: uint32) (j: int) : byte =
+        byte (key >>> (8 * j))
+
     /// Decrypt a filename byte stream, cycling the 4-byte key per byte.
     let decodeFilename (cipher: byte[]) (masterKey: uint32) : string =
         let n = cipher.Length
         let out = Array.zeroCreate<byte> n
-        let safe (b: byte) = if int b < 0 then byte (256 + int b) else b
-        let keyBytes () =
-            [| safe (byte masterKey)
-               safe (byte (masterKey >>>  8))
-               safe (byte (masterKey >>> 16))
-               safe (byte (masterKey >>> 24)) |]
         let mutable j = 0
         for i in 0 .. n - 1 do
-            let kb = keyBytes ()
-            out.[i] <- cipher.[i] ^^^ kb.[j]
-            j <- j + 1
-            if j = 4 then j <- 0
+            out.[i] <- cipher.[i] ^^^ keyByte masterKey j
+            j <- if j = 3 then 0 else j + 1
         System.Text.Encoding.UTF8.GetString out
 
     /// Decrypt a file payload byte stream. Each 4 bytes read, the
@@ -66,23 +62,12 @@ module VxAceKey =
     let decodePayload (cipher: byte[]) (entryKey: uint32) : byte[] =
         let n = cipher.Length
         let out = Array.zeroCreate<byte> n
-        let safe (b: byte) = if int b < 0 then byte (256 + int b) else b
         let mutable tempKey = entryKey
-        let mutable kb =
-            [| safe (byte tempKey)
-               safe (byte (tempKey >>>  8))
-               safe (byte (tempKey >>> 16))
-               safe (byte (tempKey >>> 24)) |]
         let mutable j = 0
         for i in 0 .. n - 1 do
-            out.[i] <- cipher.[i] ^^^ kb.[j]
+            out.[i] <- cipher.[i] ^^^ keyByte tempKey j
             j <- j + 1
             if j = 4 then
                 tempKey <- tempKey * 7u + 3u
-                kb <-
-                    [| safe (byte tempKey)
-                       safe (byte (tempKey >>>  8))
-                       safe (byte (tempKey >>> 16))
-                       safe (byte (tempKey >>> 24)) |]
                 j <- 0
         out

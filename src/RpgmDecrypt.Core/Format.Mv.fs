@@ -65,7 +65,7 @@ module Mv =
         if key.Length = 0 then
             invalidArg "key" "MV key must not be empty"
         if cipher.Length = 0 then
-            Plaintext("png", cipher) // empty file — pass through
+            Plaintext("bin", cipher) // empty file — nothing to detect, pass through
         elif looksLikePlaintext cipher then
             let k = classifyPlaintext cipher
             Plaintext(plaintextKindToString k, cipher)
