@@ -1,0 +1,26 @@
+opam-version: "2.0"
+name: "rpgm-decrypt"
+version: "dev"
+synopsis: "RPG Maker archive/asset decryptor (OCaml port)"
+description: """\
+Faithful OCaml port of rpgm-decrypt: decrypts RPG Maker XP/VX/VX Ace/MV/MZ
+archives and assets. Library [rpgm] + CLI [rpgm-decrypt]."""
+maintainer: "rpgm-decrypt"
+authors: "rpgm-decrypt"
+license: "MIT"
+homepage: "https://gitlab.com/zet-group1/rpgm-decrypt"
+bug-reports: "https://gitlab.com/zet-group1/rpgm-decrypt/-/issues"
+depends: [
+  "camlzip" {= "1.14"}
+  "dune" {= "3.23.1"}
+  "gospel" {= "0.3.1" & with-test}
+  "qcheck" {with-test & = "0.91"}
+  "re" {= "1.14.0"}
+  "yojson" {= "3.0.0"}
+]
+build: ["dune" "build" "-p" name "-j" jobs]
+run-test: [
+  ["dune" "exec" "-p" name "test/test.exe"]
+  ["dune" "exec" "-p" name "test/prop/prop.exe"]
+]
+dev-repo: "ssh://git@gitlab.com/zet-group1/rpgm-decrypt.git"

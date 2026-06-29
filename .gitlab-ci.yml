@@ -125,6 +125,60 @@ ocaml-fuzz:
     - grep -E "execs_done|corpus_count|saved_crashes|execs_per_sec" aflout/default/fuzzer_stats 2>/dev/null || true
     - 'CR=$(grep -E "^saved_crashes" aflout/default/fuzzer_stats 2>/dev/null | tr -cd "0-9"); echo "afl saved_crashes=${CR:-0}"; [ "${CR:-0}" = "0" ]'
 
+# ---- OCaml verification: property tests + Gospel spec type-check (Linux/opam) -
+# opam-based (qcheck and gospel are not in the ubuntu apt set used by
+# ocaml-build-test). Builds the library, runs the 72 parity checks + the 12
+# QCheck2 properties, then `gospel check` on every spec'd .mli. On Linux gospel
+# exits 0 cleanly (the Windows/mingw `output_value` marshal bug does not occur).
+# allow_failure so opam-env quirks never block the pipeline; a real spec or
+# property failure still surfaces in the job log.
+ocaml-verification:
+  stage: test
+  image: ocaml/opam:debian-12-ocaml-5.3
+  allow_failure: true
+  before_script:
+    - opam install -y dune camlzip yojson re qcheck gospel
+  script:
+    - cd ocaml
+    - eval $(opam env)
+    - dune build --profile release
+    - dune exec --profile release test/test.exe
+    - dune exec --profile release test/prop/prop.exe
+    - mkdir -p /tmp/gci
+    - cp lib/types.mli /tmp/gci/Types.mli
+    - cp lib/log.mli /tmp/gci/Log.mli
+    - ocamlc -c -I /tmp/gci /tmp/gci/Types.mli
+    - ocamlc -c -I /tmp/gci /tmp/gci/Log.mli
+    - gospel check lib/crypto.mli
+    - gospel check lib/vxace_key.mli
+    - gospel check lib/rgssad_core.mli
+    - gospel check lib/dispatch.mli -L /tmp/gci
+    - gospel check lib/report.mli -L /tmp/gci
+
+# ---- OCaml deductive verification (Cameleer/Why3) — manual, Linux/opam -------
+# Best-effort: installs cameleer + why3 + alt-ergo and runs the prover on the
+# proof-target modules (Vxace_key.derive_master_key, Report.safe_join
+# containment, Rgssad_core bounds). Manual + allow_failure because cameleer's
+# opam availability / OCaml-version support and the proof outcome (some VCs are
+# conditional on the axiomatised bytes/string helpers, since Gospel 0.3.1 has no
+# Bytes/String theory) may need human review. See ocaml/README.md "Formal
+# guarantees".
+ocaml-cameleer:
+  stage: test
+  image: ocaml/opam:debian-12-ocaml-5.3
+  when: manual
+  allow_failure: true
+  before_script:
+    - opam install -y dune camlzip yojson re gospel cameleer why3 alt-ergo
+    - eval $(opam env) && why3 config detect
+  script:
+    - cd ocaml
+    - eval $(opam env)
+    - cameleer lib/vxace_key.ml
+    - cameleer lib/crypto.ml
+    - cameleer lib/rgssad_core.ml
+    - cameleer lib/report.ml
+
 publish-linux:
   stage: publish
   needs: ["build-test"]
