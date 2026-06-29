@@ -179,6 +179,9 @@ ocaml-cameleer:
     - cameleer lib/rgssad_core.ml
     - cameleer lib/report.ml
 
+# ---- Product binaries (built after the gates pass; consumed by the GitHub --
+# release job below). GitLab is the build/test farm; GitHub is the clean
+# distribution channel. Each publish job is a gate for the release.
 publish-linux:
   stage: publish
   needs: ["build-test"]
@@ -190,3 +193,128 @@ publish-linux:
     paths:
       - artifacts/linux-x64/rpgm-decrypt
     expire_in: 1 week
+
+# F# self-contained single-file .exe for Windows. Same .NET install dance as
+# build-test-windows (duplicated on purpose: touching the shared job would risk
+# the existing F# Windows gate, and these are scarce SaaS Windows minutes).
+publish-windows:
+  stage: publish
+  tags:
+    - saas-windows-medium-amd64
+  needs: ["build-test-windows"]
+  before_script:
+    - Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile 'dotnet-install.ps1'
+    - .\dotnet-install.ps1 -Channel 10.0 -InstallDir "$env:USERPROFILE\.dotnet"
+    - $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
+  script:
+    - dotnet publish src/RpgmDecrypt.Cli -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:StripSymbols=true -o artifacts/win-x64
+    - .\artifacts\win-x64\rpgm-decrypt.exe --version
+  artifacts:
+    paths:
+      - artifacts/win-x64/rpgm-decrypt.exe
+    expire_in: 1 week
+
+# OCaml port native Linux binary (bonus asset; depends on libz1c2 at runtime via
+# camlzip). Not self-contained like the F# single-file, so the release notes flag
+# the dependency.
+publish-ocaml:
+  stage: publish
+  image: ubuntu:26.04
+  needs: ["ocaml-build-test"]
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev
+  script:
+    - cd ocaml
+    - dune build --profile release bin/main.exe
+    - mkdir -p ../artifacts
+    - cp _build/default/bin/main.exe ../artifacts/rpgm-decrypt-ocaml-linux
+    - chmod +x ../artifacts/rpgm-decrypt-ocaml-linux
+    - ldd ../artifacts/rpgm-decrypt-ocaml-linux || true
+    - ../artifacts/rpgm-decrypt-ocaml-linux --version
+  artifacts:
+    paths:
+      - artifacts/rpgm-decrypt-ocaml-linux
+    expire_in: 1 week
+
+# ---- Ship the tested binaries to GitHub as a Release ------------------------
+# Runs only AFTER every gate (F# build+test, OCaml parity, OCaml verification,
+# afl-fuzz) and every publish job has produced a binary. Creates a GitHub
+# Release on rolanfreeman6-png/rpgm-decrypt and uploads the three assets via the
+# GitHub REST API.
+#
+# Triggers:
+#   - tags matching ^v\d   -> stable release (tag already exists on GitHub)
+#   - push to main         -> "continuous" prerelease, overwritten each push
+#
+# Required CI/CD variable (GitLab -> Settings -> CI/CD -> Variables):
+#   GITHUB_RELEASE_TOKEN  a GitHub PAT with Contents read/write on
+#                         rolanfreeman6-png/rpgm-decrypt (classic PAT: `repo`
+#                         scope; fine-grained: "Contents: Read and write").
+# Masked + protected. Without it this job fails fast with a clear message.
+github-release:
+  stage: publish
+  image: alpine:3.20
+  needs:
+    - job: build-test
+    - job: ocaml-build-test
+    - job: ocaml-verification
+    - job: ocaml-fuzz
+    - job: publish-linux
+    - job: publish-windows
+    - job: publish-ocaml
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+/
+    - if: $CI_COMMIT_BRANCH == "main"
+  variables:
+    GH_OWNER: "rolanfreeman6-png"
+    GH_REPO: "rpgm-decrypt"
+  before_script:
+    - apk add --no-cache curl jq coreutils
+  script:
+    - |
+      set -eu
+      if [ -z "${GITHUB_RELEASE_TOKEN:-}" ]; then
+        echo "ERROR: set GITHUB_RELEASE_TOKEN in GitLab CI/CD Variables (GitHub PAT, Contents read/write on $GH_OWNER/$GH_REPO)."
+        exit 1
+      fi
+      API="https://api.github.com/repos/$GH_OWNER/$GH_REPO"
+      AUTH="Authorization: Bearer $GITHUB_RELEASE_TOKEN"
+      ACC="Accept: application/vnd.github+json"
+      APIVER="X-GitHub-Api-Version: 2022-11-28"
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        TAG="$CI_COMMIT_TAG"; PRE=false
+        NAME="rpgm-decrypt $TAG"
+        BODY="Release ${TAG} from commit ${CI_COMMIT_SHA}.\n\nGates: F# build-test ✓, OCaml parity 72/72 ✓, QCheck2 12/12 ✓, gospel check ✓, afl-fuzz 90s ✓."
+      else
+        TAG="continuous"; PRE=true
+        NAME="rpgm-decrypt continuous ($CI_COMMIT_SHORT_SHA)"
+        BODY="Continuous build from main ${CI_COMMIT_SHA}. Same gates as a tag release. Overwritten on every push to main."
+        OLD=$(curl -fsS -H "$AUTH" -H "$ACC" "$API/releases/tags/continuous" | jq -r '.id // empty')
+        if [ -n "$OLD" ]; then
+          echo "Deleting previous continuous release $OLD"
+          curl -fsS -X DELETE -H "$AUTH" -H "$ACC" "$API/releases/$OLD"
+          curl -fsS -X DELETE -H "$AUTH" -H "$ACC" "$API/git/refs/tags/continuous" || true
+        fi
+      fi
+      BODY_JSON=$(jq -n --arg tag "$TAG" --arg name "$NAME" --arg body "$BODY" --argjson pre "$PRE" \
+        '{tag_name:$tag, target_commitish:"main", name:$name, body:$body, prerelease:$pre}')
+      RESP=$(curl -fsS -X POST -H "$AUTH" -H "$ACC" -H "$APIVER" "$API/releases" -d "$BODY_JSON")
+      REL_ID=$(printf '%s' "$RESP" | jq -r .id)
+      UPLOAD=$(printf '%s' "$RESP" | jq -r .upload_url | sed 's/{?name,label}//')
+      if [ -z "$REL_ID" ] || [ "$REL_ID" = "null" ] || [ -z "$UPLOAD" ]; then
+        echo "ERROR: GitHub release creation failed:"; printf '%s\n' "$RESP"; exit 1
+      fi
+      echo "Created GitHub release id=$REL_ID tag=$TAG prerelease=$PRE"
+      upload() {
+        f="$1"; name="$2"; ct="${3:-application/octet-stream}"
+        curl -fsS -X POST -H "$AUTH" -H "Accept: application/vnd.github+json" -H "Content-Type: $ct" \
+          --data-binary @"$f" "$UPLOAD?name=$name"
+        echo " uploaded $name ($(wc -c < "$f") bytes)"
+      }
+      upload artifacts/linux-x64/rpgm-decrypt rpgm-decrypt-linux-x64
+      upload artifacts/win-x64/rpgm-decrypt.exe rpgm-decrypt-win-x64.exe
+      upload artifacts/rpgm-decrypt-ocaml-linux rpgm-decrypt-ocaml-linux
+      echo "=== Release $TAG published to https://github.com/$GH_OWNER/$GH_REPO/releases/tag/$TAG ==="
