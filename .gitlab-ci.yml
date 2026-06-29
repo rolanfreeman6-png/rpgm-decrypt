@@ -70,8 +70,10 @@ ocaml-build-test-windows:
     - opam init --auto-setup --yes --disable-sandboxing
     - opam install --yes dune camlzip yojson re ocamlformat
   script:
+    # Same qcheck exclusion as the Linux apt job: build only bin + parity test.
+    # opam here installs no qcheck; the property suite runs in ocaml-verification.
     - cd ocaml
-    - opam exec -- dune build --profile release
+    - opam exec -- dune build --profile release bin/main.exe test/test.exe
     - opam exec -- dune build @fmt   # format gate (ocamlformat 0.29.0)
     - opam exec -- dune exec --profile release test/test.exe
 
@@ -85,8 +87,12 @@ ocaml-build-test:
     - apt-get update -qq
     - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev
   script:
+    # Build only the qcheck-free artifacts: the default alias (`dune build`)
+    # would also build test/prop/prop.exe, which needs qcheck-core.runner — not
+    # in the apt set. The property suite runs in `ocaml-verification` (opam,
+    # installs qcheck). Explicit targets avoid pulling prop in here.
     - cd ocaml
-    - dune build --profile release
+    - dune build --profile release bin/main.exe test/test.exe
     - dune exec --profile release test/test.exe
 
 # ---- Coverage-guided fuzzing of the OCaml parsers --------------------------
