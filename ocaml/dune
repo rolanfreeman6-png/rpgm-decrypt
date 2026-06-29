@@ -1,0 +1,19 @@
+; Project-wide build environment. In the release profile, treat all enabled
+; warnings as errors. The disabled set mirrors the per-stanza -w flags
+; (see lib/bin/test/fuzz dune) and is the standard "strict, not noisy" OCaml
+; configuration:
+;   4  fragile-match         catch-all (`_`) on extensible types (e.g. `char` in
+;                            [hex_nibble], exception handlers) — intentional
+;                            total-by-wildcard matches.
+;   40 name-out-of-scope     constructor/label used out of its defining module;
+;                            we use qualified cross-module record-field access.
+;   42 disambiguated-name    compatibility warning for disambiguated names.
+;   44 open-shadow-identifier `open Rpgm` in executables can shadow stdlib ids.
+;   45 open-shadow-label-constructor  ... likewise for labels/constructors.
+;   70 missing-mli           the executable units bin/main.ml, test/test.ml,
+;                            fuzz/fuzz.ml have no .mli by design (programs,
+;                            not library modules).
+; Warning 33 (unused-open) stays enabled: every `open Rpgm` is genuinely used.
+(env
+ (release
+  (flags (:standard -warn-error +a-4-40-42-44-45-70))))
