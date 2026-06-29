@@ -1,0 +1,310 @@
+---
+/**
+ * Sequence — horizontal row of small "squares" connected by a single
+ * red-neon line. The pattern echoes Hubtown's section-by-section sequence
+ * (Future / Innovation / …) but with hard-edged boxes plus a glowing
+ * connecting spine, instead of free text blocks.
+ *
+ * Each square marks a phase of upcoming work. The squares cascade in
+ * left-to-right as the section enters the viewport, and the spine
+ * "draws" itself via the same `IntersectionObserver` hook the rest of
+ * the page uses.
+ *
+ * Props:
+ *   sectionClass — extra classes on the outer <section> (e.g. 'scene')
+ *   title        — short display title at the top
+ *   intro        — one paragraph above the squares
+ *   items        — array: { code, label, detail?, status: 'now'|'next'|'later' }
+ */
+
+interface Item {
+  code: string;
+  label: string;
+  detail?: string;
+  status?: 'now' | 'next' | 'later';
+}
+
+interface Props {
+  sectionClass?: string;
+  title?: string;
+  intro?: string;
+  items: Item[];
+}
+
+const {
+  sectionClass = '',
+  title = 'Road ahead.',
+  intro = 'Right-to-left on the spine, an honest order of operations. Squares glow brighter the closer in time they get.',
+  items,
+} = Astro.props;
+---
+<section class:list={[ 'sequence', sectionClass ]} data-sequence>
+  <div class="sequence__inner scene__content container-full">
+    <header class="sequence__head">
+      <span class="sequence__counter counter">04 / Roadmap</span>
+      <h2 class="sequence__title display-2" data-reveal>{title}</h2>
+      <p class="lead sequence__intro" data-reveal data-reveal-delay="80">{intro}</p>
+    </header>
+
+    <div class="sequence__stage">
+      <!-- connecting red neon spine — uses stroke-dashoffset reveal -->
+      <svg
+        class="sequence__line"
+        viewBox="0 0 1000 80"
+        preserveAspectRatio="none"
+        role="presentation"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="seqGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%"  stop-color="rgba(255, 46, 85, 0)"  />
+            <stop offset="6%"  stop-color="rgba(255, 46, 85, 0.55)" />
+            <stop offset="50%" stop-color="rgba(255, 46, 85, 1)"  />
+            <stop offset="94%" stop-color="rgba(255, 46, 85, 0.45)" />
+            <stop offset="100%" stop-color="rgba(255, 46, 85, 0)" />
+          </linearGradient>
+          <filter id="seqGlow" x="-20%" y="-200%" width="140%" height="500%">
+            <feGaussianBlur stdDeviation="2.6" />
+          </filter>
+        </defs>
+        <!-- dim base -->
+        <line x1="0" x2="1000" y1="40" y2="40" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+        <line
+          x1="0" x2="1000" y1="40" y2="40"
+          stroke="url(#seqGrad)" stroke-width="1.4" stroke-linecap="round"
+          data-line-fill
+          style="stroke-dasharray: 1000; stroke-dashoffset: 1000;"
+        />
+        <line
+          x1="0" x2="1000" y1="40" y2="40"
+          stroke="url(#seqGrad)" stroke-width="6" stroke-linecap="round"
+          filter="url(#seqGlow)" opacity="0.45"
+          style="stroke-dasharray: 1000; stroke-dashoffset: 1000;"
+        />
+      </svg>
+
+      <ol class="sequence__squares" role="list" data-squares>
+        {items.map((item, i) => {
+          const pos = items.length === 1 ? 50 : (i / (items.length - 1)) * 100;
+          const isNow   = item.status === 'now';
+          const isLater = item.status === 'later';
+          return (
+            <li
+              class:list={[ 'seq-square', { 'is-now': isNow, 'is-later': isLater } ]}
+              style={`--sq-left:${pos}%; --sq-stagger:${220 + i * 140}ms;`}
+            >
+              <span class="seq-square__num" aria-hidden="true">{item.code}</span>
+              <span class="seq-square__label">{item.label}</span>
+              {item.detail && <span class="seq-square__detail">{item.detail}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  </div>
+</section>
+
+<style>
+  .sequence {
+    position: relative;
+    border-top: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+  }
+  .sequence__counter { color: var(--neon); }
+  .sequence__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    max-width: 64ch;
+    margin-bottom: var(--space-9);
+  }
+  .sequence__title { max-width: 18ch; }
+  .sequence__intro { max-width: 56ch; }
+
+  /* ── the row that holds the spine + squares ─────────────────────────── */
+  .sequence__stage {
+    position: relative;
+    min-height: clamp(280px, 30vw, 360px);
+  }
+  .sequence__line {
+    position: absolute;
+    top: 32px;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: 80px;
+    z-index: 0;
+    overflow: visible;
+  }
+  .sequence__line line { transition: stroke-dashoffset 1.4s var(--ease-out); }
+
+  /* ── the squares pinned to the spine ─────────────────────────────────── */
+  .sequence__squares {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+    z-index: 1;
+  }
+  .seq-square {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-5);
+    aspect-ratio: 1 / 1;
+    background: color-mix(in srgb, var(--ink-elev) 70%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+    border-radius: 0;
+    isolation: isolate;
+    overflow: hidden;
+    cursor: default;
+    transition:
+      border-color var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out),
+      background var(--duration-base) var(--ease-out);
+    /* hidden until JS reveals */
+    opacity: 0;
+    transform: translateY(24px);
+    transition-delay: var(--sq-stagger, 0ms);
+  }
+  .seq-square.is-revealed {
+    opacity: 1;
+    transform: none;
+  }
+  /* corner-number ribbon at the top-right */
+  .seq-square__num {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    color: var(--paper-muted);
+  }
+  .seq-square.is-now .seq-square__num { color: var(--neon); }
+  .seq-square.is-later .seq-square__num { color: var(--paper-soft); }
+
+  /* under square, the connector dot that touches the spine */
+  .seq-square::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translate(-50%, 50%);
+    width: 6px;
+    height: 6px;
+    background: var(--paper-soft);
+    border-radius: 50%;
+    transition: background var(--duration-base) var(--ease-out),
+                box-shadow var(--duration-base) var(--ease-out);
+  }
+  .seq-square.is-now::after {
+    background: var(--neon);
+    box-shadow: 0 0 8px var(--neon), 0 0 18px color-mix(in srgb, var(--neon) 60%, transparent);
+  }
+
+  .seq-square__label {
+    color: var(--text-strong);
+    font-family: var(--font-display);
+    font-size: var(--text-md);
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: var(--tracking-tight);
+    margin-top: auto;
+    word-break: break-word;
+  }
+  .seq-square__detail {
+    color: var(--paper-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+  }
+
+  .seq-square:hover {
+    border-color: var(--neon);
+    transform: translateY(-4px);
+    background: color-mix(in srgb, var(--ink-elev) 100%, transparent);
+  }
+  .seq-square.is-now {
+    border-color: color-mix(in srgb, var(--neon) 50%, transparent);
+    background: color-mix(in srgb, var(--ink-elev) 90%, transparent);
+  }
+  .seq-square.is-now:hover {
+    border-color: var(--neon);
+    box-shadow: 0 14px 40px -16px color-mix(in srgb, var(--neon) 50%, transparent);
+  }
+  .seq-square.is-later {
+    opacity: 0;
+    filter: saturate(0.4);
+  }
+  .seq-square.is-later .seq-square__label,
+  .seq-square.is-later .seq-square__detail { color: var(--paper-soft); }
+
+  /* ── mobile / narrow: stack squares vertically, line on left ───────── */
+  @media (max-width: 720px) {
+    .sequence__stage { min-height: auto; padding-left: 32px; }
+    .sequence__line { top: 0; bottom: 0; left: 0; right: auto; width: 32px; height: 100%; }
+    .sequence__line line[y1='40'] { y1: 0; y2: 1000; }
+    .sequence__squares {
+      grid-auto-flow: row;
+      grid-auto-columns: auto;
+      gap: var(--space-3);
+    }
+    .seq-square {
+      aspect-ratio: auto;
+      min-height: 110px;
+    }
+    .seq-square::after {
+      bottom: 50%;
+      left: -1px;
+      transform: translate(-50%, 50%);
+    }
+  }
+</style>
+
+<script>
+  /*
+   * Reveal each square + draw the connecting line.
+   * Hooks into the global .is-revealed pattern that scroll-reveal.ts
+   * already adds. We just need to (a) flip the line dashoffset and
+   * (b) cascade the squares in.
+   *
+   * We'll piggy-back on the existing IntersectionObserver (added below)
+   * so behavior is consistent with the rest of the page.
+   */
+  const stage = document.querySelector<HTMLElement>('[data-sequence]');
+  if (stage) {
+    const lines  = stage.querySelectorAll<SVGLineElement>('[data-line-fill]');
+    const squares = stage.querySelectorAll<HTMLElement>('.seq-square');
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduced) {
+      lines.forEach((l) => { l.style.strokeDashoffset = '0'; });
+      squares.forEach((s) => s.classList.add('is-revealed'));
+    } else if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          lines.forEach((l, i) => {
+            const total = Number(l.getTotalLength?.() ?? 1000);
+            l.style.strokeDasharray = String(total);
+            window.setTimeout(() => { l.style.strokeDashoffset = '0'; }, 80 + i * 80);
+          });
+          squares.forEach((s) => s.classList.add('is-revealed'));
+          io.unobserve(entry.target);
+        }
+      }, { threshold: 0.3 });
+      io.observe(stage);
+    } else {
+      // No IO support — show everything immediately.
+      lines.forEach((l) => { l.style.strokeDashoffset = '0'; });
+      squares.forEach((s) => s.classList.add('is-revealed'));
+    }
+  }
+</script>

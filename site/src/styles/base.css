@@ -19,6 +19,10 @@ html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
   text-rendering: optimizeLegibility;
+  /* scroll-snap: each .snap scene stops at the top of the viewport as the user
+     scrolls past. `proximity` is gentle — sections with internal scrollable
+     content still let users read freely. */
+  scroll-snap-type: y proximity;
 }
 
 body {
@@ -29,11 +33,11 @@ body {
   font-synthesis: none;
   color: var(--paper);
   background: var(--ink);
-  /* warm editorial grain — three offset radial layers */
+  /* warm editorial grain — three offset radial layers (red neon spectrum) */
   background-image:
-    radial-gradient(120% 70% at 50% -10%, rgba(184, 122, 63, 0.10), transparent 60%),
-    radial-gradient(80% 60% at 100% 100%, rgba(217, 183, 116, 0.04), transparent 60%),
-    radial-gradient(60% 70% at 0% 80%, rgba(184, 122, 63, 0.04), transparent 60%);
+    radial-gradient(120% 70% at 50% -10%, rgba(255, 46, 85, 0.10), transparent 60%),
+    radial-gradient(80% 60% at 100% 100%, rgba(255, 117, 133, 0.05), transparent 60%),
+    radial-gradient(60% 70% at 0% 80%, rgba(128, 0, 32, 0.06), transparent 60%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

@@ -36,6 +36,44 @@
   margin-block: var(--space-section);
 }
 
+/* ── SCENE — full-viewport "slide" with scroll-snap ─────────────────────────
+ * Each major section that should sit on its own scene tall enough for one
+ * scroll-wheel push. Internal content can overflow without breaking snap —
+ * internal scroll happens within the section if needed. */
+.scene {
+  min-height: clamp(100vh, 100svh, 100vh);
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-block: var(--space-section-lg);
+  isolation: isolate;
+}
+.scene--bleed {
+  justify-content: flex-start;
+  padding-block: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-snap-type: none; }
+  .scene { min-height: auto; scroll-snap-align: none; }
+}
+/* scene entrance — JS adds .is-active when section enters viewport.
+   Default = hidden content. .is-active reveals in cascade. */
+.scene__content {
+  opacity: 0;
+  transform: translateY(40px);
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-out);
+  transition-delay: var(--scene-delay, 0ms);
+}
+.scene.is-active .scene__content {
+  opacity: 1;
+  transform: none;
+}
+
 /* ── editorial section marker (vertical word in the corner) ────────────────
  * Each major section can wear this; it's absolutely positioned to the side
  * of the section's content and pinned (sticky) while the user scrolls it. */

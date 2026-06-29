@@ -1,16 +1,24 @@
 ---
 /**
- * Home page — editorial scroll narrative. Three sections:
- *   01 / WORKS   — hero with stat-line, huge display title, lead, cue.
- *   02 / CATALOG — grid of products. Each card restyled editorial.
- *   03 / STUDIO  — about / mission block with continuous narrative copy.
+ * Home page — full-viewport scenes with document-level scroll-snap.
+ * Each scene is its own "step" the wheel pushes the page into:
  *
- * The BlackHole canvas is dropped per the redesign — replaced by
- * scroll-driven type (split-text word reveal + soft parallax).
+ *   01 / Works   — hero with BlackHole canvas background + stat block
+ *   02 / Catalog — grid of products
+ *   03 / Studio  — mission / about block
+ *   04 / Roadmap — horizontal sequence of small squares connected by a red
+ *                   neon line; each square pinpoints a phase of upcoming work.
+ *
+ * Implementation matches Hubtown's snap-feel without copying any proprietary
+ * JS / WebGL modules. We use:
+ *   • document-level `scroll-snap-type: y proximity` (CSS-only)
+ *   • IntersectionObserver to flip `.is-active` and fire word-by-word reveals
+ *   • shared `.scene__content` styling for fade-out / fade-in scene transitions
+ *   • red scroll-progress bar at the top, also driven by scroll
  */
 import Base from '../layouts/Base.astro';
 import ProductCard from '../components/ProductCard.astro';
-import Roadmap from '../components/Roadmap.astro';
+import Sequence from '../components/Sequence.astro';
 import { products } from '../data/products.ts';
 
 const released     = products.filter((p) => p.status === 'released');
@@ -24,13 +32,13 @@ const totalIncoming = comingSoon.length;
   description="A small catalog of products I ship — standalone binaries and libraries. Data-driven; every entry here is also a real, downloadable thing on GitHub."
   pathname="/"
 >
-  <!-- ── 01 / WORKS ─────────────────────────────────────────────────────── -->
-  <section class="hero section section-lg" id="works">
+  <!-- ── 01 / WORKS ──────────────────────────────────────────────────────── -->
+  <section class="scene scene--hero scene--bleed" id="works">
     <aside class="hero__marker section-marker section-marker--big" aria-hidden="true">
       Works
     </aside>
 
-    <div class="hero__inner container-full">
+    <div class="hero__inner scene__content container-full">
       <div class="hero__head">
         <span class="hero__counter counter">01 / Works</span>
         <div class="stats" data-reveal>
@@ -54,8 +62,8 @@ const totalIncoming = comingSoon.length;
       <div class="hero__foot">
         <p class="hero__lead lead" data-reveal>
           A small set of products I ship — standalone binaries and libraries,
-          each one built like a piece of engineering. Click any card to read
-          the story and grab the latest release.
+          each one built like a piece of engineering. Scroll, or click any card
+          to read the story and grab the latest release.
         </p>
         <div class="hero__ctas" data-reveal>
           <a class="btn btn-primary btn-arrow btn-lg" href="#catalog">
@@ -74,14 +82,16 @@ const totalIncoming = comingSoon.length;
     </div>
   </section>
 
-  <!-- ── 02 / CATALOG ───────────────────────────────────────────────────── -->
-  <section class="catalog section section-lg" id="catalog">
-    <div class="catalog__inner container-full">
+  <!-- ── 02 / CATALOG ────────────────────────────────────────────────────── -->
+  <section class="scene catalog" id="catalog">
+    <aside class="catalog__marker section-marker section-marker--big" aria-hidden="true">
+      Catalog
+    </aside>
+
+    <div class="catalog__inner scene__content container-full">
       <header class="catalog__head">
-        <aside class="catalog__marker section-marker section-marker--big" aria-hidden="true">
-          Catalog
-        </aside>
         <span class="catalog__counter counter">02 / Catalog</span>
+        <h2 class="catalog__title display-2" data-reveal>Things I've shipped.</h2>
       </header>
 
       <div class="catalog__grid">
@@ -92,24 +102,24 @@ const totalIncoming = comingSoon.length;
     </div>
   </section>
 
-  <!-- ── 03 / STUDIO ─────────────────────────────────────────────────────── -->
-  <section class="studio section section-lg">
-    <div class="studio__inner container-full">
-      <header class="studio__head">
-        <aside class="studio__marker section-marker section-marker--big" aria-hidden="true">
-          Studio
-        </aside>
-        <span class="studio__counter counter">03 / Studio</span>
-      </header>
+  <!-- ── 03 / STUDIO ──────────────────────────────────────────────────────── -->
+  <section class="scene studio">
+    <aside class="studio__marker section-marker section-marker--big" aria-hidden="true">
+      Studio
+    </aside>
 
-      <h2 class="studio__title display-2 split-text" data-split-text aria-label="A solo practice, run with discipline.">
-        <span class="word"><span>A</span></span>
-        <span class="word"><span>solo</span></span>
-        <span class="word"><span>practice,</span></span>
-        <span class="word"><span>run</span></span>
-        <span class="word"><span>with</span></span>
-        <span class="word"><span>discipline.</span></span>
-      </h2>
+    <div class="studio__inner scene__content container-full">
+      <header class="studio__head">
+        <span class="studio__counter counter">03 / Studio</span>
+        <h2 class="studio__title display-2 split-text" data-split-text aria-label="A solo practice, run with discipline.">
+          <span class="word"><span>A</span></span>
+          <span class="word"><span>solo</span></span>
+          <span class="word"><span>practice,</span></span>
+          <span class="word"><span>run</span></span>
+          <span class="word"><span>with</span></span>
+          <span class="word"><span>discipline.</span></span>
+        </h2>
+      </header>
 
       <div class="studio__body">
         <p class="lead" data-reveal>
@@ -119,37 +129,45 @@ const totalIncoming = comingSoon.length;
         </p>
         <p class="lead" data-reveal data-reveal-delay="80">
           If you're after an introduction, the latest project is always the front
-          of the catalog. The rest is in the index of finished work.
+          of the catalog. The rest is in the index of finished work, and the
+          order of operations lives below.
         </p>
       </div>
     </div>
   </section>
 
-  <!-- ── 04 / ROADMAP ──────────────────────────────────────────────────── -->
-  <Roadmap />
+  <!-- ── 04 / ROADMAP (sequence of squares + red neon spine) ─────────────── -->
+  <Sequence
+    sectionClass="scene roadmap"
+    title="Road ahead."
+    intro="Right-to-left on the spine, an honest order of operations. Now → next → later. Squares glow brighter the closer in time they get."
+    items={[
+      { code: '01', label: 'rpgm-decrypt',     detail: 'released · maintained', status: 'now'   },
+      { code: '02', label: 'Project TBA',      detail: 'in design',             status: 'next'  },
+      { code: '03', label: 'Project TBA II',   detail: 'in research',           status: 'next'  },
+      { code: '04', label: '?',                detail: 'yet unnamed',           status: 'later' },
+      { code: '05', label: '?',                detail: 'yet unnamed',           status: 'later' },
+    ]}
+  />
 </Base>
 
 <style>
   /* ── 01 / HERO ─────────────────────────────────────────────────────────── */
-  .hero {
+  .scene--hero {
     position: relative;
-    min-height: 90vh;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-7);
-    align-items: stretch;
+    overflow: hidden;
   }
   .hero__marker {
-    grid-column: 1;
-    align-self: start;
-    padding-top: clamp(2rem, 6vh, 5rem);
-    padding-left: clamp(1rem, 2vw, 2rem);
+    position: absolute;
+    top: clamp(2rem, 8vh, 6rem);
+    left: clamp(1rem, 2vw, 2rem);
+    z-index: 3;
   }
   .hero__inner {
-    grid-column: 2;
     display: grid;
     grid-template-rows: auto 1fr auto;
     gap: var(--space-9);
+    height: 100%;
     padding-block: clamp(3rem, 8vh, 7rem);
   }
   .hero__head {
@@ -157,7 +175,7 @@ const totalIncoming = comingSoon.length;
     flex-direction: column;
     gap: var(--space-5);
   }
-  .hero__counter { display: inline-block; }
+  .hero__counter { color: var(--neon); }
   .stats .stat-line {
     grid-template-columns: max-content max-content max-content max-content;
     column-gap: var(--space-9);
@@ -198,10 +216,7 @@ const totalIncoming = comingSoon.length;
     height: 1px;
     background: var(--paper-muted);
   }
-
   @media (max-width: 920px) {
-    .hero { grid-template-columns: 1fr; }
-    .hero__marker { display: none; }
     .hero__foot { grid-template-columns: 1fr; align-items: start; }
     .hero__ctas { justify-self: start; }
   }
@@ -209,29 +224,28 @@ const totalIncoming = comingSoon.length;
   /* ── 02 / CATALOG ──────────────────────────────────────────────────────── */
   .catalog {
     position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-7);
-    align-items: start;
+    align-items: stretch;
   }
   .catalog__marker {
-    grid-column: 1;
-    padding-top: var(--space-3);
-    padding-left: clamp(1rem, 2vw, 2rem);
+    position: absolute;
+    top: var(--space-9);
+    left: clamp(1rem, 2vw, 2rem);
+    z-index: 3;
   }
   .catalog__inner {
-    grid-column: 2;
     display: flex;
     flex-direction: column;
     gap: var(--space-9);
+    height: 100%;
+    padding-block: var(--space-section);
   }
   .catalog__head {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: var(--space-5);
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-4);
   }
+  .catalog__counter { color: var(--neon); }
+  .catalog__title { max-width: 18ch; }
   .catalog__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -240,25 +254,20 @@ const totalIncoming = comingSoon.length;
     padding-top: var(--space-7);
   }
   @media (max-width: 920px) {
-    .catalog { grid-template-columns: 1fr; }
     .catalog__marker { display: none; }
   }
 
   /* ── 03 / STUDIO ───────────────────────────────────────────────────────── */
   .studio {
     position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--space-7);
-    align-items: start;
   }
   .studio__marker {
-    grid-column: 1;
-    padding-top: var(--space-3);
-    padding-left: clamp(1rem, 2vw, 2rem);
+    position: absolute;
+    top: var(--space-9);
+    left: clamp(1rem, 2vw, 2rem);
+    z-index: 3;
   }
   .studio__inner {
-    grid-column: 2;
     display: flex;
     flex-direction: column;
     gap: var(--space-7);
@@ -266,9 +275,10 @@ const totalIncoming = comingSoon.length;
   }
   .studio__head {
     display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    flex-direction: column;
+    gap: var(--space-4);
   }
+  .studio__counter { color: var(--neon); }
   .studio__title { max-width: 18ch; }
   .studio__body {
     display: flex;
@@ -279,13 +289,12 @@ const totalIncoming = comingSoon.length;
     max-width: 70ch;
   }
   @media (max-width: 920px) {
-    .studio { grid-template-columns: 1fr; }
     .studio__marker { display: none; }
   }
 </style>
 
 <script>
-  /* ── Counter animation: tick any [data-counter] from 0 → n on reveal ── */
+  /* ── Counter animation: tick any [data-counter] from 0 → n on scene activation ── */
   const counters = document.querySelectorAll<HTMLElement>('[data-counter]');
   if (counters.length > 0) {
     const tick = (el: HTMLElement, target: number): void => {
@@ -293,7 +302,6 @@ const totalIncoming = comingSoon.length;
       const dur = 1100;
       const step = (now: number): void => {
         const t = Math.min(1, (now - start) / dur);
-        // easeOutCubic
         const eased = 1 - Math.pow(1 - t, 3);
         const value = Math.max(0, Math.round(target * eased));
         el.textContent = value < 10 ? `0${value}` : String(value);
