@@ -24,3 +24,18 @@ val choose_output_extension : string -> string -> string
 (** [choose_output_extension input_ext kind] maps a detected [kind] (or, for
     ["bin"], the original encrypted [input_ext]) to a real output extension.
     Total: always returns a valid extension. *)
+(*@ r = choose_output_extension input_ext kind
+    ensures
+      r =
+        match kind with
+        | "png" -> ".png"
+        | "ogg" -> ".ogg"
+        | "m4a" -> ".m4a"
+        | "webp" -> ".webp"
+        | "jpg" -> ".jpg"
+        | _ ->
+            match input_ext with
+            | ".png_" -> ".png"
+            | ".ogg_" -> ".ogg"
+            | ".m4a_" -> ".m4a"
+            | _ -> ".bin" *)
