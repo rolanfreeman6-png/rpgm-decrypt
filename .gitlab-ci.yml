@@ -1,8 +1,11 @@
 # GitLab CI for rpgm-decrypt.
 #
-# Mirrors the GitHub Actions build+test gate on a free gitlab.com Linux runner
-# (Docker, .NET 10 SDK image). This gives the Linux cross-platform signal;
-# Windows/macOS coverage stays on GitHub Actions / local runs.
+# Mirrors the GitHub Actions build+test gate. Linux coverage runs on the free
+# gitlab.com Docker runners (.NET 10 SDK image). Windows coverage runs on the
+# GitLab SaaS Windows runners (tag saas-windows-medium-amd64): the F# product
+# is built+tested automatically there; the OCaml port is a manual job (opam on
+# Windows is a slow build, so it stays opt-in to spare trial CI minutes).
+# macOS coverage stays on GitHub Actions / local runs.
 #
 # TreatWarningsAsErrors is enforced both by src/Directory.Build.props and the
 # explicit -p: flag below, matching the GitHub `test` job.
@@ -34,6 +37,42 @@ build-test:
     - dotnet restore src/RpgmDecrypt.slnx
     - dotnet build src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
     - dotnet run --project src/RpgmDecrypt.Tests -c Release --no-build
+
+# ---- F# build + test on the GitLab SaaS Windows runner --------------------
+# Windows coverage for the actually-shipped decryptor. .NET 10 is too new to be
+# preinstalled on the SaaS image, so we fetch it via the official install script.
+build-test-windows:
+  stage: test
+  tags:
+    - saas-windows-medium-amd64
+  before_script:
+    - Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile 'dotnet-install.ps1'
+    - .\dotnet-install.ps1 -Channel 10.0 -InstallDir "$env:USERPROFILE\.dotnet"
+    - $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
+  script:
+    - dotnet restore src/RpgmDecrypt.slnx
+    - dotnet build src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
+    - dotnet run --project src/RpgmDecrypt.Tests -c Release --no-build
+
+# ---- OCaml port build + parity tests on Windows (opam) --------------------
+# opam on Windows bootstraps its own Cygwin + builds the compiler, which is slow
+# and consumes scarce trial Windows minutes, so this is opt-in (when: manual)
+# and never blocks the pipeline (allow_failure). Native parity on Windows is
+# also verified on the local dev box; this job is the CI mirror of that.
+ocaml-build-test-windows:
+  stage: test
+  tags:
+    - saas-windows-medium-amd64
+  when: manual
+  allow_failure: true
+  before_script:
+    - choco install opam --yes --no-progress
+    - opam init --auto-setup --yes --disable-sandboxing
+    - opam install --yes dune zip yojson re
+  script:
+    - cd ocaml
+    - opam exec -- dune build --profile release
+    - opam exec -- dune exec --profile release test/test.exe
 
 # ---- OCaml port (ocaml/) — build + parity tests on a Linux OCaml toolchain --
 ocaml-build-test:
