@@ -75,6 +75,7 @@ This is a 7-mutation directed smoke, not a full mutaml campaign with an
 equivalent-mutant analysis. It demonstrates the suite catches representative
 operator/bounds/logic mutants on the verified core, and it surfaced (and
 closed) two genuine coverage gaps. The I/O modules (`io`, `walk`, `mz`,
-`report.run`, `key_discovery`) are not mutated here — they are covered by
-Gospel specs + ortac RAC (see the README "Formal guarantees" section), not by
-deductive proofs.
+`report.run`, `key_discovery`) are not mutated here — they are covered by the
+72 behavioural checks + 12 QCheck properties (see the README "Formal
+verification & guarantees" section); the deductive proofs target the pure
+core, not I/O.
