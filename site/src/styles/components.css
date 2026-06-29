@@ -45,20 +45,65 @@
   scroll-snap-align: start;
   scroll-snap-stop: normal;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-7);
+  align-items: stretch;
   padding-block: var(--space-section-lg);
   isolation: isolate;
 }
 .scene--bleed {
-  justify-content: flex-start;
+  grid-template-columns: 1fr;
   padding-block: 0;
 }
+.scene--first { padding-top: clamp(1rem, 2vh, 2rem); }
+
+@media (max-width: 920px) {
+  .scene { grid-template-columns: 1fr; }
+  .scene__sticky { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-snap-type: none; }
   .scene { min-height: auto; scroll-snap-align: none; }
 }
+
+/* ── sticky vertical word marker (Hubtown-style) ──────────────────────────
+ * Inside each .scene we keep a vertical-label pinned to the top of the
+ * viewport so it stays visible while the scene scrolls by. */
+.scene__sticky {
+  position: sticky;
+  top: clamp(72px, 11vh, 110px);
+  align-self: start;
+  height: fit-content;
+  padding-left: clamp(0.5rem, 1vw, 1.5rem);
+  padding-top: var(--space-3);
+  z-index: 1;
+}
+.scene__sticky-marker {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-display);
+  font-size: var(--text-marker);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+  line-height: 0.95;
+  user-select: none;
+  /* fade out as user reaches scene's tail */
+  position: relative;
+}
+.scene__sticky-meta {
+  display: block;
+  margin-top: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  color: var(--paper-muted);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
 /* scene entrance — JS adds .is-active when section enters viewport.
    Default = hidden content. .is-active reveals in cascade. */
 .scene__content {
@@ -72,6 +117,48 @@
 .scene.is-active .scene__content {
   opacity: 1;
   transform: none;
+}
+
+/* ── scroll-driven per-word reveal (Hubtown-style title slide) ─────────────
+ * Compute ratio on each word relative to viewport center; CSS keys off it.
+ * Falls back to .is-revealed state for cleanliness. */
+.split-text .word > span {
+  transform: translateY(calc((1 - var(--word-shift, 0)) * 100% + 10%));
+  opacity: var(--word-shift, 0);
+  transition: none;
+}
+.scene.is-active .split-text .word > span {
+  /* nudge when scene becomes active so words enter initial position; real
+     motion is driven by the scroll-progress script. */
+  opacity: 0.001;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .split-text .word > span {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+}
+
+/* ── per-scene body tint (applied to <body> when scene scene-* becomes active).
+   The shift is intentionally subtle: it threads a faint red glow across
+   the page so scenes feel sequenced, not just stacked. */
+body.tint-hero    body::after { opacity: 0.10; background-position: 50% -10%; }
+body.tint-catalog body::after { opacity: 0.06; background-position: 50% 30%;  }
+body.tint-studio  body::after { opacity: 0.05; background-position: 50% 60%;  }
+body.tint-roadmap body::after { opacity: 0.07; background-position: 50% 95%;  }
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60% 35% at 50% 50%, #ff2e55 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity var(--duration-slow) var(--ease-out),
+              background-position var(--duration-slow) var(--ease-out);
 }
 
 /* ── editorial section marker (vertical word in the corner) ────────────────

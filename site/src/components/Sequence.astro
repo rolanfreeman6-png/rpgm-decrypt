@@ -38,7 +38,12 @@ const {
   items,
 } = Astro.props;
 ---
-<section class:list={[ 'sequence', sectionClass ]} data-sequence>
+<section class:list={[ 'sequence', sectionClass ]} data-sequence data-scene-tone="tint-roadmap">
+  <aside class="scene__sticky" aria-hidden="true">
+    <span class="scene__sticky-marker">Roadmap</span>
+    <span class="scene__sticky-meta">04 / Order</span>
+  </aside>
+
   <div class="sequence__inner scene__content container-full">
     <header class="sequence__head">
       <span class="sequence__counter counter">04 / Roadmap</span>
@@ -46,6 +51,8 @@ const {
       <p class="lead sequence__intro" data-reveal data-reveal-delay="80">{intro}</p>
     </header>
 
+    <!-- ── horizontal timeline (desktop) ─────────────────────────────────────
+         SVG holds the line; the squares are HTML so they can pulse independently. -->
     <div class="sequence__stage">
       <!-- connecting red neon spine — uses stroke-dashoffset reveal -->
       <svg
@@ -157,7 +164,9 @@ const {
     gap: var(--space-2);
     padding: var(--space-5);
     aspect-ratio: 1 / 1;
-    background: color-mix(in srgb, var(--ink-elev) 70%, transparent);
+    background: color-mix(in srgb, var(--ink-elev) 50%, transparent);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
     border: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
     border-radius: 0;
     isolation: isolate;
@@ -166,11 +175,22 @@ const {
     transition:
       border-color var(--duration-base) var(--ease-out),
       transform var(--duration-base) var(--ease-out),
-      background var(--duration-base) var(--ease-out);
+      background var(--duration-base) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out);
     /* hidden until JS reveals */
     opacity: 0;
     transform: translateY(24px);
     transition-delay: var(--sq-stagger, 0ms);
+  }
+  /* radial-glow halo behind each square, fades in on hover */
+  .seq-square::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(60% 60% at 80% 0%, rgba(255, 46, 85, 0.18) 0%, transparent 60%);
+    opacity: 0;
+    transition: opacity var(--duration-base) var(--ease-out);
   }
   .seq-square.is-revealed {
     opacity: 1;
@@ -229,15 +249,23 @@ const {
   .seq-square:hover {
     border-color: var(--neon);
     transform: translateY(-4px);
-    background: color-mix(in srgb, var(--ink-elev) 100%, transparent);
+    background: color-mix(in srgb, var(--ink-elev) 95%, transparent);
+    box-shadow: 0 14px 40px -16px color-mix(in srgb, var(--neon) 55%, transparent);
   }
+  .seq-square:hover::before { opacity: 1; }
   .seq-square.is-now {
     border-color: color-mix(in srgb, var(--neon) 50%, transparent);
-    background: color-mix(in srgb, var(--ink-elev) 90%, transparent);
+    background: color-mix(in srgb, var(--ink-elev) 80%, transparent);
+  }
+  .seq-square.is-now::before {
+    background: radial-gradient(70% 70% at 80% 0%, rgba(255, 46, 85, 0.30) 0%, transparent 65%);
+    opacity: 1;
   }
   .seq-square.is-now:hover {
     border-color: var(--neon);
-    box-shadow: 0 14px 40px -16px color-mix(in srgb, var(--neon) 50%, transparent);
+    box-shadow:
+      0 14px 40px -16px color-mix(in srgb, var(--neon) 60%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--neon) 40%, transparent) inset;
   }
   .seq-square.is-later {
     filter: saturate(0.4);
