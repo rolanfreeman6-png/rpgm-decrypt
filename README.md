@@ -72,7 +72,7 @@ Need machine-readable output for a script? Add `--report-format json`:
 | 📦 | **One self-contained binary** | Copy it to a clean machine and it just runs. Zero dependencies. |
 | 🛡️ | **Safe by construction** | Hostile/corrupt input never crashes it (proven by fuzzing) and can't escape your output folder (Zip-Slip blocked). |
 | 🤖 | **Script-friendly** | `--report-format json` + NDJSON logs pipe straight into `jq`. |
-| 🧪 | **Provably correct core** | Key functions carry formal contracts (Gospel); core safety properties are machine-checked (Why3 / Alt-Ergo). |
+| 🧪 | **Provably correct core** | Key functions carry formal contracts (Gospel); core safety properties are machine-checked (Why3 / Z3). |
 
 ---
 
