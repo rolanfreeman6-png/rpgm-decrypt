@@ -9,6 +9,11 @@ obj/
 .vs/
 .fake/
 
+# ...but ocaml/bin/ is the OCaml CLI *source* directory, not build output.
+# The generic bin/ rule above would otherwise drop the entire CLI from the repo.
+!ocaml/bin/
+!ocaml/bin/**
+
 # Test output
 TestResults/
 coverage/

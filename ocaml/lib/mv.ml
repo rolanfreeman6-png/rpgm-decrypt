@@ -2,9 +2,9 @@
    cipher[i] = plain[i] XOR key[i mod keyLength]; symmetric. *)
 
 type decrypt_outcome =
-  | Plaintext of string * bytes  (* kind, bytes — already plaintext, identity *)
-  | Decrypted of string * bytes  (* kind, bytes — XOR applied, magic found *)
-  | Unsure of bytes              (* XOR applied but no plaintext magic *)
+  | Plaintext of string * bytes (* kind, bytes — already plaintext, identity *)
+  | Decrypted of string * bytes (* kind, bytes — XOR applied, magic found *)
+  | Unsure of bytes (* XOR applied but no plaintext magic *)
 
 type plaintext_kind = Png | Ogg | M4a | Webp | Jpg | Unknown
 
@@ -12,7 +12,8 @@ let classify_plaintext (head : bytes) : plaintext_kind =
   if Bytes.length head = 0 then Unknown
   else if Crypto.starts_with Crypto.magic_png head then Png
   else if Crypto.starts_with Crypto.magic_ogg head then Ogg
-  else if Bytes.length head >= 8 && Crypto.sub_array_eq 4 4 Crypto.magic_m4a head
+  else if
+    Bytes.length head >= 8 && Crypto.sub_array_eq 4 4 Crypto.magic_m4a head
   then M4a
   else if
     Bytes.length head >= 12
@@ -34,7 +35,8 @@ let plaintext_kind_to_string = function
     buffers are returned untouched (identity copy). *)
 let decrypt (key : bytes) (cipher : bytes) : decrypt_outcome =
   if Bytes.length key = 0 then invalid_arg "MV key must not be empty";
-  if Bytes.length cipher = 0 then Plaintext ("bin", cipher) (* empty -> pass through *)
+  if Bytes.length cipher = 0 then Plaintext ("bin", cipher)
+    (* empty -> pass through *)
   else if Crypto.looks_like_plaintext cipher then
     Plaintext (plaintext_kind_to_string (classify_plaintext cipher), cipher)
   else begin

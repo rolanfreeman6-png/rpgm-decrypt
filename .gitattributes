@@ -1,0 +1,15 @@
+# Deterministic line endings: source files are always LF in the repo and on
+# checkout, regardless of platform autocrlf settings. Keeps ocamlformat /
+# Fantomas output stable and diffs noise-free across Windows/Linux/macOS.
+*.ml   text eol=lf
+*.mli  text eol=lf
+
+*.fsi  text eol=lf
+*.fsproj text eol=lf
+*.slnx text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.md   text eol=lf
+dune   text eol=lf
+dune-project text eol=lf
+.ocamlformat text eol=lf

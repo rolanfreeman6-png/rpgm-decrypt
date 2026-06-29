@@ -2,18 +2,8 @@
    Master seed at byte 8 -> masterKey = seed*9+3; every entry field is XOR'd
    with masterKey; per-entry payload uses a rotating key (in Vxace_key). *)
 
-type entry =
-  { index : int
-  ; name : string
-  ; offset : int
-  ; size : int
-  ; key : int }
-
-type parse_error =
-  | ShortHeader
-  | BadMagic
-  | BadVersion of int
-  | Truncated
+type entry = { index : int; name : string; offset : int; size : int; key : int }
+type parse_error = ShortHeader | BadMagic | BadVersion of int | Truncated
 
 let magic_key = Crypto.magic_rgssad_prefix
 let read_u32_le = Rgssad_core.read_u32_le

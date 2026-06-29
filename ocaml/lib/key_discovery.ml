@@ -2,9 +2,7 @@
    wordlist validation against real cipher. Uses yojson (System.json) and re
    (rpg_core.js literal scan). We never evaluate JavaScript. *)
 
-type key_result =
-  | Found of bytes * string
-  | NotFound of string
+type key_result = Found of bytes * string | NotFound of string
 
 (* ---- regexes (faithful to the F# .NET patterns) ---------------------- *)
 let re1 =
@@ -33,49 +31,59 @@ let try_system_json (path : string) : key_result =
     try
       let txt = Bytes.to_string (Io.read_file path) in
       match try_read_json_key txt with
-      | Some hex -> Found (Crypto.decode_hex_key hex, Printf.sprintf "System.json (%s)" path)
+      | Some hex ->
+          Found
+            (Crypto.decode_hex_key hex, Printf.sprintf "System.json (%s)" path)
       | None ->
-          NotFound (Printf.sprintf "System.json at %s has no .encryptionKey" path)
+          NotFound
+            (Printf.sprintf "System.json at %s has no .encryptionKey" path)
     with e ->
-      NotFound (Printf.sprintf "System.json read/parse error: %s" (Printexc.to_string e))
+      NotFound
+        (Printf.sprintf "System.json read/parse error: %s"
+           (Printexc.to_string e))
 
 let try_js_scan (path : string) : key_result =
-  if not (Sys.file_exists path) then NotFound (Printf.sprintf "no file at %s" path)
+  if not (Sys.file_exists path) then
+    NotFound (Printf.sprintf "no file at %s" path)
   else
     try
       let txt = Bytes.to_string (Io.read_file path) in
       match Re.exec_opt re1 txt with
       | Some g ->
-          Found (Crypto.decode_hex_key (Re.Group.get g 1), Printf.sprintf "regex match in %s" path)
+          Found
+            ( Crypto.decode_hex_key (Re.Group.get g 1),
+              Printf.sprintf "regex match in %s" path )
       | None -> (
           match Re.exec_opt re2 txt with
           | Some g ->
               Found
-                ( Crypto.decode_hex_key (Re.Group.get g 1)
-                , Printf.sprintf "regex match (encryptionKey=) in %s" path )
+                ( Crypto.decode_hex_key (Re.Group.get g 1),
+                  Printf.sprintf "regex match (encryptionKey=) in %s" path )
           | None -> NotFound (Printf.sprintf "no hex key literal in %s" path))
-    with e -> NotFound (Printf.sprintf "js scan error: %s" (Printexc.to_string e))
+    with e ->
+      NotFound (Printf.sprintf "js scan error: %s" (Printexc.to_string e))
 
 let is_found = function Found _ -> true | _ -> false
 
 (* *.js directly in [dir] (one level). *)
 let js_in_dir (dir : string) : string list =
-  if Sys.file_exists dir && (try Sys.is_directory dir with _ -> false) then
+  if Sys.file_exists dir && try Sys.is_directory dir with _ -> false then
     Sys.readdir dir |> Array.to_list
     |> List.filter (fun n ->
-           Filename.check_suffix (String.lowercase_ascii n) ".js")
+        Filename.check_suffix (String.lowercase_ascii n) ".js")
     |> List.map (Filename.concat dir)
   else []
 
 (* *.js anywhere under [dir]. *)
 let rec js_recursive (dir : string) : string list =
-  if Sys.file_exists dir && (try Sys.is_directory dir with _ -> false) then
+  if Sys.file_exists dir && try Sys.is_directory dir with _ -> false then
     Sys.readdir dir |> Array.to_list
     |> List.concat_map (fun n ->
-           let p = Filename.concat dir n in
-           if (try Sys.is_directory p with _ -> false) then js_recursive p
-           else if Filename.check_suffix (String.lowercase_ascii n) ".js" then [ p ]
-           else [])
+        let p = Filename.concat dir n in
+        if try Sys.is_directory p with _ -> false then js_recursive p
+        else if Filename.check_suffix (String.lowercase_ascii n) ".js" then
+          [ p ]
+        else [])
   else []
 
 (** Full priority order: www/js/System.json -> www/data/System.json ->
@@ -85,7 +93,9 @@ let discover (game_dir : string) : key_result =
   let www_js = Filename.concat www_root "js" in
   let www_js_system = Filename.concat www_js "System.json" in
   let www_rpg_core = Filename.concat www_js "rpg_core.js" in
-  let www_data_sys = Filename.concat (Filename.concat www_root "data") "System.json" in
+  let www_data_sys =
+    Filename.concat (Filename.concat www_root "data") "System.json"
+  in
   match try_system_json www_js_system with
   | Found _ as r -> r
   | NotFound _ -> (
@@ -98,10 +108,14 @@ let discover (game_dir : string) : key_result =
               if not (Sys.file_exists www_root) then
                 NotFound "no www/ directory in game_dir"
               else begin
-                let found = ref (NotFound "no encryption key found in www/js or www/data") in
+                let found =
+                  ref (NotFound "no encryption key found in www/js or www/data")
+                in
                 List.iter
                   (fun f ->
-                    match try_js_scan f with Found _ as r -> found := r | NotFound _ -> ())
+                    match try_js_scan f with
+                    | Found _ as r -> found := r
+                    | NotFound _ -> ())
                   (js_in_dir www_js);
                 if not (is_found !found) then
                   List.iter
@@ -117,7 +131,8 @@ let discover (game_dir : string) : key_result =
 let first_encrypted_sample (game_dir : string) : bytes option =
   let exts = [ ".png_"; ".ogg_"; ".m4a_"; ".rpgmvp"; ".rpgmvo"; ".rpgmvm" ] in
   let rec find_in dir =
-    if not (Sys.file_exists dir && (try Sys.is_directory dir with _ -> false)) then None
+    if not (Sys.file_exists dir && try Sys.is_directory dir with _ -> false)
+    then None
     else begin
       let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
       let here =
@@ -142,21 +157,25 @@ let first_encrypted_sample (game_dir : string) : bytes option =
               | Some _ -> acc
               | None ->
                   let p = Filename.concat dir n in
-                  if (try Sys.is_directory p with _ -> false) then find_in p else None)
+                  if try Sys.is_directory p with _ -> false then find_in p
+                  else None)
             None names
     end
   in
   let candidates =
-    [ Filename.concat (Filename.concat game_dir "www") "img"
-    ; Filename.concat (Filename.concat game_dir "www") "audio"
-    ; game_dir ]
+    [
+      Filename.concat (Filename.concat game_dir "www") "img";
+      Filename.concat (Filename.concat game_dir "www") "audio";
+      game_dir;
+    ]
   in
   List.fold_left
     (fun acc d -> match acc with Some _ -> acc | None -> find_in d)
     None candidates
 
 (** Try each 32-char hex candidate against the first encrypted asset. *)
-let discover_with_wordlist (game_dir : string) (wordlist : string array) : key_result =
+let discover_with_wordlist (game_dir : string) (wordlist : string array) :
+    key_result =
   if Array.length wordlist = 0 then NotFound "wordlist is empty"
   else
     match first_encrypted_sample game_dir with
@@ -167,19 +186,19 @@ let discover_with_wordlist (game_dir : string) (wordlist : string array) : key_r
           (fun raw ->
             match !answer with
             | Found _ -> ()
-            | _ ->
+            | _ -> (
                 let trimmed = String.trim raw in
-                if String.length trimmed = 32 then (
+                if String.length trimmed = 32 then
                   try
                     let k = Crypto.decode_hex_key trimmed in
                     let t = Crypto.xor_transform k sample in
                     if Crypto.looks_like_plaintext t then
                       answer :=
                         Found
-                          ( k
-                          , Printf.sprintf
-                              "--password-file candidate '%s' (validated against \
-                               cipher sample)"
+                          ( k,
+                            Printf.sprintf
+                              "--password-file candidate '%s' (validated \
+                               against cipher sample)"
                               trimmed )
                   with _ -> ()))
           wordlist;

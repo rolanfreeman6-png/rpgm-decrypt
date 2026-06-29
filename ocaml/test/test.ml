@@ -13,13 +13,18 @@ let check name cond =
 
 let check_bytes name a b = check name (Bytes.equal a b)
 
-let bytes_of_hex h = (* even-length hex -> bytes *)
+let bytes_of_hex h =
+  (* even-length hex -> bytes *)
   let n = String.length h / 2 in
   Bytes.init n (fun i ->
       let hx c = Crypto.hex_nibble (Char.lowercase_ascii c) in
       Char.chr ((hx h.[2 * i] lsl 4) lor hx h.[(2 * i) + 1]))
 
-let raises f = try ignore (f ()); false with _ -> true
+let raises f =
+  try
+    ignore (f ());
+    false
+  with _ -> true
 
 let set_u32le b pos v =
   Bytes.set b pos (Char.chr (v land 0xFF));
@@ -34,30 +39,43 @@ let test_crypto () =
   check "decodeHexKey b15" (Bytes.get k 15 = '\xef');
   let key = Bytes.of_string "\x01\x02\x03\x04\x05" in
   let orig = Bytes.of_string "\x42\x00\xff\xaa\x55\xc3\x11" in
-  check_bytes "xor involution" orig (Crypto.xor_transform key (Crypto.xor_transform key orig));
-  check "looksLikePlaintext png" (Crypto.looks_like_plaintext (bytes_of_hex "89504E470D0A1A0A"));
-  check "looksLikePlaintext ogg" (Crypto.looks_like_plaintext (Bytes.of_string "OggSxxxx"));
-  check "looksLikePlaintext jpg" (Crypto.looks_like_plaintext (Bytes.of_string "\xff\xd8\xff\xe0"));
-  check "looksLikePlaintext rejects RPGMV" (not (Crypto.looks_like_plaintext (Bytes.of_string "RPGMV3123456789012")));
-  check "decodeHexKey rejects short" (raises (fun () -> Crypto.decode_hex_key "abcd"));
-  check "decodeHexKey rejects non-hex" (raises (fun () -> Crypto.decode_hex_key "zz23456789abcdef0123456789abcdef"));
-  check "xorTransform rejects empty key" (raises (fun () -> Crypto.xor_transform (Bytes.create 0) (Bytes.of_string "ab")))
+  check_bytes "xor involution" orig
+    (Crypto.xor_transform key (Crypto.xor_transform key orig));
+  check "looksLikePlaintext png"
+    (Crypto.looks_like_plaintext (bytes_of_hex "89504E470D0A1A0A"));
+  check "looksLikePlaintext ogg"
+    (Crypto.looks_like_plaintext (Bytes.of_string "OggSxxxx"));
+  check "looksLikePlaintext jpg"
+    (Crypto.looks_like_plaintext (Bytes.of_string "\xff\xd8\xff\xe0"));
+  check "looksLikePlaintext rejects RPGMV"
+    (not (Crypto.looks_like_plaintext (Bytes.of_string "RPGMV3123456789012")));
+  check "decodeHexKey rejects short"
+    (raises (fun () -> Crypto.decode_hex_key "abcd"));
+  check "decodeHexKey rejects non-hex"
+    (raises (fun () -> Crypto.decode_hex_key "zz23456789abcdef0123456789abcdef"));
+  check "xorTransform rejects empty key"
+    (raises (fun () ->
+         Crypto.xor_transform (Bytes.create 0) (Bytes.of_string "ab")))
 
 (* ---- Mv -------------------------------------------------------------- *)
 let test_mv () =
   let key = bytes_of_hex "123456789ABCDEF01122334455667788" in
   let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452" in
   (match Mv.decrypt key png with
-   | Mv.Plaintext (k, b) -> check "mv plaintext kind png" (k = "png"); check_bytes "mv plaintext bytes" png b
-   | _ -> check "mv plaintext outcome" false);
+  | Mv.Plaintext (k, b) ->
+      check "mv plaintext kind png" (k = "png");
+      check_bytes "mv plaintext bytes" png b
+  | _ -> check "mv plaintext outcome" false);
   let cipher = Crypto.xor_transform key png in
   check "mv cipher not plaintext" (not (Crypto.looks_like_plaintext cipher));
   (match Mv.decrypt key cipher with
-   | Mv.Decrypted (k, b) -> check "mv decrypted kind png" (k = "png"); check_bytes "mv decrypted bytes" png b
-   | _ -> check "mv decrypted outcome" false);
-  (match Mv.decrypt (Bytes.make 16 '\000') cipher with
-   | Mv.Unsure _ -> check "mv wrong key -> Unsure" true
-   | _ -> check "mv wrong key -> Unsure" false)
+  | Mv.Decrypted (k, b) ->
+      check "mv decrypted kind png" (k = "png");
+      check_bytes "mv decrypted bytes" png b
+  | _ -> check "mv decrypted outcome" false);
+  match Mv.decrypt (Bytes.make 16 '\000') cipher with
+  | Mv.Unsure _ -> check "mv wrong key -> Unsure" true
+  | _ -> check "mv wrong key -> Unsure" false
 
 (* ---- XP / VX (shared Rgssad_core) ------------------------------------ *)
 let build_rgssad ver =
@@ -65,8 +83,9 @@ let build_rgssad ver =
   let nlen = String.length name in
   let enc =
     Bytes.init nlen (fun i ->
-        Char.chr (Char.code name.[i]
-                  lxor Char.code (Bytes.get Crypto.magic_rgssad_prefix (i mod 7))))
+        Char.chr
+          (Char.code name.[i]
+          lxor Char.code (Bytes.get Crypto.magic_rgssad_prefix (i mod 7))))
   in
   let payload = Bytes.init 8 (fun i -> Char.chr i) in
   let psize = Bytes.length payload in
@@ -75,9 +94,12 @@ let build_rgssad ver =
   let buf = Bytes.make total '\000' in
   Bytes.blit Crypto.magic_rgssad_prefix 0 buf 0 7;
   Bytes.set buf 7 (Char.chr ver);
-  set_u32le buf 8 psize;            (* size *)
-  set_u32le buf 12 pos_payload;     (* offset *)
-  set_u32le buf 16 nlen;            (* name_len *)
+  set_u32le buf 8 psize;
+  (* size *)
+  set_u32le buf 12 pos_payload;
+  (* offset *)
+  set_u32le buf 16 nlen;
+  (* name_len *)
   Bytes.blit enc 0 buf 20 nlen;
   (* terminator 12 zero bytes already in place *)
   Bytes.blit payload 0 buf pos_payload psize;
@@ -87,39 +109,55 @@ let test_xp_vx () =
   (* XP v1 *)
   let buf, name, payload, pos_payload = build_rgssad 0x01 in
   (match Xp.parse buf with
-   | Ok (entries, _) ->
-       check "xp 1 entry" (List.length entries = 1);
-       let e = List.hd entries in
-       check "xp name" (e.Rgssad_core.name = name);
-       check "xp size" (e.Rgssad_core.size = Bytes.length payload);
-       check "xp offset" (e.Rgssad_core.offset = pos_payload);
-       check_bytes "xp readEntry" payload (Xp.read_entry buf e)
-   | Error _ -> check "xp parse ok" false);
-  check "xp bad magic" (match Xp.parse (Bytes.of_string "\xff\xff\xff\xff\xff\xff\xff\x01") with Error Rgssad_core.BadMagic -> true | _ -> false);
-  check "xp bad version" (match Xp.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02") with Error (Rgssad_core.BadVersion 2) -> true | _ -> false);
+  | Ok (entries, _) ->
+      check "xp 1 entry" (List.length entries = 1);
+      let e = List.hd entries in
+      check "xp name" (e.Rgssad_core.name = name);
+      check "xp size" (e.Rgssad_core.size = Bytes.length payload);
+      check "xp offset" (e.Rgssad_core.offset = pos_payload);
+      check_bytes "xp readEntry" payload (Xp.read_entry buf e)
+  | Error _ -> check "xp parse ok" false);
+  check "xp bad magic"
+    (match Xp.parse (Bytes.of_string "\xff\xff\xff\xff\xff\xff\xff\x01") with
+    | Error Rgssad_core.BadMagic -> true
+    | _ -> false);
+  check "xp bad version"
+    (match Xp.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02") with
+    | Error (Rgssad_core.BadVersion 2) -> true
+    | _ -> false);
   (* VX v2 *)
   let buf2, name2, _, _ = build_rgssad 0x02 in
   (match Vx.parse buf2 with
-   | Ok (entries, _) -> check "vx 1 entry" (List.length entries = 1); check "vx name" ((List.hd entries).Rgssad_core.name = name2)
-   | Error _ -> check "vx parse ok" false);
-  check "vx bad version" (match Vx.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01") with Error (Rgssad_core.BadVersion 1) -> true | _ -> false);
+  | Ok (entries, _) ->
+      check "vx 1 entry" (List.length entries = 1);
+      check "vx name" ((List.hd entries).Rgssad_core.name = name2)
+  | Error _ -> check "vx parse ok" false);
+  check "vx bad version"
+    (match Vx.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01") with
+    | Error (Rgssad_core.BadVersion 1) -> true
+    | _ -> false);
   (* I-1 regression: high-bit name_len must yield Truncated, never crash.
      20-byte buffer: header(8) + size(nonzero,4) + offset(4) + name_len(4). *)
   let bad = Bytes.make 20 '\000' in
   Bytes.blit Crypto.magic_rgssad_prefix 0 bad 0 7;
   Bytes.set bad 7 '\x02';
-  set_u32le bad 8 0x10;          (* size nonzero -> not the sentinel *)
-  set_u32le bad 16 0xFFFFFFFA;   (* name_len high-bit *)
-  check "vx high-bit name_len -> Truncated" (match Vx.parse bad with Error Rgssad_core.Truncated -> true | _ -> false)
+  set_u32le bad 8 0x10;
+  (* size nonzero -> not the sentinel *)
+  set_u32le bad 16 0xFFFFFFFA;
+  (* name_len high-bit *)
+  check "vx high-bit name_len -> Truncated"
+    (match Vx.parse bad with Error Rgssad_core.Truncated -> true | _ -> false)
 
 (* ---- VX Ace ---------------------------------------------------------- *)
 let test_vxace () =
-  let master = 3 in (* seed 0 -> 0*9+3 *)
+  let master = 3 in
+  (* seed 0 -> 0*9+3 *)
   let enc_u32 d = d lxor master in
   let name = "Hero.png" in
   let nlen = String.length name in
   let plain_payload = Bytes.init 16 (fun i -> Char.chr (i + 1)) in
-  let cipher_payload = Vxace_key.decode_payload plain_payload 0 in (* entry_key=0; XOR keystream is involutive *)
+  let cipher_payload = Vxace_key.decode_payload plain_payload 0 in
+  (* entry_key=0; XOR keystream is involutive *)
   let psize = Bytes.length cipher_payload in
   let pos_payload = 12 + 16 + nlen + 16 in
   let total = pos_payload + psize in
@@ -127,10 +165,14 @@ let test_vxace () =
   Bytes.blit Crypto.magic_rgssad_prefix 0 buf 0 7;
   Bytes.set buf 7 '\x03';
   (* seed = 0 at 8..11 already *)
-  set_u32le buf 12 (enc_u32 pos_payload);  (* offset *)
-  set_u32le buf 16 (enc_u32 psize);        (* size *)
-  set_u32le buf 20 (enc_u32 0);            (* entry key *)
-  set_u32le buf 24 (enc_u32 nlen);         (* name_len *)
+  set_u32le buf 12 (enc_u32 pos_payload);
+  (* offset *)
+  set_u32le buf 16 (enc_u32 psize);
+  (* size *)
+  set_u32le buf 20 (enc_u32 0);
+  (* entry key *)
+  set_u32le buf 24 (enc_u32 nlen);
+  (* name_len *)
   (* name encoded with master-key 4-byte cycling (master=3 -> kb [3,0,0,0]) *)
   for i = 0 to nlen - 1 do
     let kb = Vxace_key.key_byte master (i mod 4) in
@@ -140,17 +182,25 @@ let test_vxace () =
   set_u32le buf (28 + nlen) (enc_u32 0);
   Bytes.blit cipher_payload 0 buf pos_payload psize;
   (match Vxace.parse buf with
-   | Ok entries ->
-       check "vxace 1 entry" (List.length entries = 1);
-       let e = List.hd entries in
-       check "vxace name" (e.Vxace.name = name);
-       check "vxace size" (e.Vxace.size = psize);
-       let sliced = Vxace.read_entry buf e in
-       check_bytes "vxace payload roundtrip" plain_payload (Vxace.decrypt_payload e sliced)
-   | Error _ -> check "vxace parse ok" false);
-  check "vxace bad version" (match Vxace.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01\x00\x00\x00\x00") with Error (Vxace.BadVersion 1) -> true | _ -> false);
+  | Ok entries ->
+      check "vxace 1 entry" (List.length entries = 1);
+      let e = List.hd entries in
+      check "vxace name" (e.Vxace.name = name);
+      check "vxace size" (e.Vxace.size = psize);
+      let sliced = Vxace.read_entry buf e in
+      check_bytes "vxace payload roundtrip" plain_payload
+        (Vxace.decrypt_payload e sliced)
+  | Error _ -> check "vxace parse ok" false);
+  check "vxace bad version"
+    (match
+       Vxace.parse
+         (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01\x00\x00\x00\x00")
+     with
+    | Error (Vxace.BadVersion 1) -> true
+    | _ -> false);
   (* master-key formula *)
-  check "deriveMasterKey seed0" (Vxace_key.derive_master_key (Bytes.make 4 '\000') 0 = 3)
+  check "deriveMasterKey seed0"
+    (Vxace_key.derive_master_key (Bytes.make 4 '\000') 0 = 3)
 
 (* ---- MZ (.pak via camlzip) ------------------------------------------- *)
 let test_mz () =
@@ -162,50 +212,75 @@ let test_mz () =
   Zip.add_entry (Bytes.to_string cipher) z "www/img/test.png";
   Zip.close_out z;
   (match Mz.open_pak pak with
-   | Ok zf ->
-       (match Mz.decrypt_all key zf with
-        | Ok [ e ] ->
-            check "mz entry name" (e.Mz.entry_name = "www/img/test.png");
-            check "mz kind png" (e.Mz.plaintext_kind = "png");
-            check_bytes "mz bytes" png e.Mz.bytes
-        | _ -> check "mz decryptAll 1 entry" false);
-       (try Zip.close_in zf with _ -> ())
-   | Error _ -> check "mz openPak" false);
-  check "mz rejects non-zip" (match Mz.open_pak Sys.argv.(0) with Error Mz.NotAZipFile -> true | Ok _ -> (check "" true; false) | Error _ -> false);
+  | Ok zf -> (
+      (match Mz.decrypt_all key zf with
+      | Ok [ e ] ->
+          check "mz entry name" (e.Mz.entry_name = "www/img/test.png");
+          check "mz kind png" (e.Mz.plaintext_kind = "png");
+          check_bytes "mz bytes" png e.Mz.bytes
+      | _ -> check "mz decryptAll 1 entry" false);
+      try Zip.close_in zf with _ -> ())
+  | Error _ -> check "mz openPak" false);
+  check "mz rejects non-zip"
+    (match Mz.open_pak Sys.argv.(0) with
+    | Error Mz.NotAZipFile -> true
+    | Ok _ ->
+        check "" true;
+        false
+    | Error _ -> false);
   Sys.remove pak
 
 (* ---- safe_join + end-to-end Report.run ------------------------------- *)
 let test_report () =
   (* safe_join *)
-  check "safeJoin nested allowed" (Report.safe_join "/tmp/out" "www/img/a.png" <> None);
-  check "safeJoin traversal blocked" (Report.safe_join "/tmp/out" "../../evil.txt" = None);
+  check "safeJoin nested allowed"
+    (Report.safe_join "/tmp/out" "www/img/a.png" <> None);
+  check "safeJoin traversal blocked"
+    (Report.safe_join "/tmp/out" "../../evil.txt" = None);
   (* MV end-to-end round-trip *)
   let root = Filename.temp_dir "rpgm" "e2e" in
   let game = Filename.concat root "game" in
   Report.mkdir_p (Filename.concat (Filename.concat game "www") "js");
   Report.mkdir_p (Filename.concat (Filename.concat game "www") "img");
   Io.write_file
-    (Filename.concat (Filename.concat (Filename.concat game "www") "js") "System.json")
+    (Filename.concat
+       (Filename.concat (Filename.concat game "www") "js")
+       "System.json")
     (Bytes.of_string {|{ "encryptionKey": "deadbeef00112233445566778899aabb" }|});
   let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
   let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452AABBCC" in
   Io.write_file
-    (Filename.concat (Filename.concat (Filename.concat game "www") "img") "Hero.png_")
+    (Filename.concat
+       (Filename.concat (Filename.concat game "www") "img")
+       "Hero.png_")
     (Crypto.xor_transform key png);
   let out = Filename.concat root "out" in
   let summary =
     Report.run
-      { Report.game_dir = game; out_dir = out; key; key_source = "test";
-        dry_run = false; on_event = (fun _ -> ()) }
+      {
+        Report.game_dir = game;
+        out_dir = out;
+        key;
+        key_source = "test";
+        dry_run = false;
+        on_event = (fun _ -> ());
+      }
   in
   check "e2e failed=0" (summary.Types.failed_count = 0);
-  let hero = Filename.concat (Filename.concat (Filename.concat out "www") "img") "Hero.png" in
+  let hero =
+    Filename.concat
+      (Filename.concat (Filename.concat out "www") "img")
+      "Hero.png"
+  in
   check "e2e Hero.png exists" (Sys.file_exists hero);
-  if Sys.file_exists hero then check_bytes "e2e roundtrip" png (Io.read_file hero);
+  if Sys.file_exists hero then
+    check_bytes "e2e roundtrip" png (Io.read_file hero);
   (* MZ Zip-Slip blocked end-to-end *)
   let game2 = Filename.concat root "game2" in
   Report.mkdir_p game2;
-  let cipher = Crypto.xor_transform key (bytes_of_hex "89504E470D0A1A0A0000000D49484452") in
+  let cipher =
+    Crypto.xor_transform key (bytes_of_hex "89504E470D0A1A0A0000000D49484452")
+  in
   let pak = Filename.concat game2 "packed.pak" in
   let z = Zip.open_out pak in
   Zip.add_entry (Bytes.to_string cipher) z "../evil.png";
@@ -213,11 +288,18 @@ let test_report () =
   let out2 = Filename.concat root "out2" in
   let s2 =
     Report.run
-      { Report.game_dir = game2; out_dir = out2; key; key_source = "test";
-        dry_run = false; on_event = (fun _ -> ()) }
+      {
+        Report.game_dir = game2;
+        out_dir = out2;
+        key;
+        key_source = "test";
+        dry_run = false;
+        on_event = (fun _ -> ());
+      }
   in
   check "zipslip counted failed" (s2.Types.failed_count >= 1);
-  check "zipslip nothing escaped" (not (Sys.file_exists (Filename.concat root "evil.png")))
+  check "zipslip nothing escaped"
+    (not (Sys.file_exists (Filename.concat root "evil.png")))
 
 (* ---- helpers for the expanded suite ---------------------------------- *)
 let contains hay needle =
@@ -233,34 +315,58 @@ let write_tmp suffix (content : bytes) =
 (* ---- crypto extras + choose_output_extension ------------------------- *)
 let test_crypto_more () =
   check "looksLikePlaintext webp"
-    (Crypto.looks_like_plaintext (Bytes.of_string "RIFF\x00\x00\x00\x00WEBPxxxx"));
+    (Crypto.looks_like_plaintext
+       (Bytes.of_string "RIFF\x00\x00\x00\x00WEBPxxxx"));
   check "looksLikePlaintext m4a"
     (Crypto.looks_like_plaintext (Bytes.of_string "\x00\x00\x00\x18ftypM4A "));
   check "zero_fill clears"
     (let b = Bytes.of_string "abc" in
      Crypto.zero_fill b;
      Bytes.equal b (Bytes.make 3 '\000'));
-  check "chooseExt png_ bin" (Dispatch.choose_output_extension ".png_" "bin" = ".png");
-  check "chooseExt webp kind" (Dispatch.choose_output_extension ".png_" "webp" = ".webp");
-  check "chooseExt unknown" (Dispatch.choose_output_extension ".xyz" "bin" = ".bin")
+  check "chooseExt png_ bin"
+    (Dispatch.choose_output_extension ".png_" "bin" = ".png");
+  check "chooseExt webp kind"
+    (Dispatch.choose_output_extension ".png_" "webp" = ".webp");
+  check "chooseExt unknown"
+    (Dispatch.choose_output_extension ".xyz" "bin" = ".bin")
 
 (* ---- Dispatch.classify (extension + magic) --------------------------- *)
 let test_classify () =
   let key = bytes_of_hex "deadbeef00112233445566778899aabb" in
-  let png_ = write_tmp ".png_" (Crypto.xor_transform key (bytes_of_hex "89504E470D0A1A0A0000000D49484452")) in
-  check "classify .png_ -> MV" (Dispatch.classify png_ = Some Types.MV); Sys.remove png_;
-  let png = write_tmp ".png" (bytes_of_hex "89504E470D0A1A0A0000000D49484452") in
-  check "classify .png -> MV" (Dispatch.classify png = Some Types.MV); Sys.remove png;
-  let r1 = write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01") in
-  check "classify .rgssad v1 -> XP" (Dispatch.classify r1 = Some Types.XP); Sys.remove r1;
-  let r2 = write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02") in
-  check "classify .rgssad v2 -> VX" (Dispatch.classify r2 = Some Types.VX); Sys.remove r2;
-  let r3 = write_tmp ".rgss3a" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x03\x00\x00\x00\x00") in
-  check "classify .rgss3a -> VXAce" (Dispatch.classify r3 = Some Types.VXAce); Sys.remove r3;
+  let png_ =
+    write_tmp ".png_"
+      (Crypto.xor_transform key
+         (bytes_of_hex "89504E470D0A1A0A0000000D49484452"))
+  in
+  check "classify .png_ -> MV" (Dispatch.classify png_ = Some Types.MV);
+  Sys.remove png_;
+  let png =
+    write_tmp ".png" (bytes_of_hex "89504E470D0A1A0A0000000D49484452")
+  in
+  check "classify .png -> MV" (Dispatch.classify png = Some Types.MV);
+  Sys.remove png;
+  let r1 =
+    write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01")
+  in
+  check "classify .rgssad v1 -> XP" (Dispatch.classify r1 = Some Types.XP);
+  Sys.remove r1;
+  let r2 =
+    write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02")
+  in
+  check "classify .rgssad v2 -> VX" (Dispatch.classify r2 = Some Types.VX);
+  Sys.remove r2;
+  let r3 =
+    write_tmp ".rgss3a"
+      (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x03\x00\x00\x00\x00")
+  in
+  check "classify .rgss3a -> VXAce" (Dispatch.classify r3 = Some Types.VXAce);
+  Sys.remove r3;
   let zp = write_tmp ".bin" (Bytes.of_string "PK\x03\x04stuffstuff") in
-  check "classify zip magic -> MZ" (Dispatch.classify zp = Some Types.MZ); Sys.remove zp;
+  check "classify zip magic -> MZ" (Dispatch.classify zp = Some Types.MZ);
+  Sys.remove zp;
   let no = write_tmp ".bin" (Bytes.of_string "not a game file here") in
-  check "classify unknown -> None" (Dispatch.classify no = None); Sys.remove no
+  check "classify unknown -> None" (Dispatch.classify no = None);
+  Sys.remove no
 
 (* ---- KeyDiscovery ---------------------------------------------------- *)
 let test_key_discovery () =
@@ -269,23 +375,31 @@ let test_key_discovery () =
   let wwwimg = Filename.concat (Filename.concat root "www") "img" in
   Report.mkdir_p wwwjs;
   Report.mkdir_p wwwimg;
-  Io.write_file (Filename.concat wwwjs "System.json")
+  Io.write_file
+    (Filename.concat wwwjs "System.json")
     (Bytes.of_string {|{ "encryptionKey": "deadbeef00112233445566778899aabb" }|});
   (match Key_discovery.discover root with
-   | Key_discovery.Found (b, src) ->
-       check "kd found b0" (Bytes.get b 0 = '\xde');
-       check "kd source mentions System.json" (contains src "System.json")
-   | _ -> check "kd discover found" false);
+  | Key_discovery.Found (b, src) ->
+      check "kd found b0" (Bytes.get b 0 = '\xde');
+      check "kd source mentions System.json" (contains src "System.json")
+  | _ -> check "kd discover found" false);
   let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
   let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452" in
-  Io.write_file (Filename.concat wwwimg "Hero.png_") (Crypto.xor_transform key png);
-  (match Key_discovery.discover_with_wordlist root
-           [| "00000000000000000000000000000000"; "deadbeef00112233445566778899aabb" |] with
-   | Key_discovery.Found (b, _) -> check_bytes "kd wordlist correct key" key b
-   | _ -> check "kd wordlist found" false);
+  Io.write_file
+    (Filename.concat wwwimg "Hero.png_")
+    (Crypto.xor_transform key png);
+  (match
+     Key_discovery.discover_with_wordlist root
+       [|
+         "00000000000000000000000000000000"; "deadbeef00112233445566778899aabb";
+       |]
+   with
+  | Key_discovery.Found (b, _) -> check_bytes "kd wordlist correct key" key b
+  | _ -> check "kd wordlist found" false);
   check "kd empty wordlist rejected"
     (match Key_discovery.discover_with_wordlist root [||] with
-     | Key_discovery.NotFound _ -> true | _ -> false)
+    | Key_discovery.NotFound _ -> true
+    | _ -> false)
 
 (* ---- MZ multi-entry order ------------------------------------------- *)
 let test_mz_multi () =
@@ -293,22 +407,28 @@ let test_mz_multi () =
   let png = bytes_of_hex "89504E470D0A1A0AAABBCCDDEEFF1122" in
   let pak = Filename.temp_file "rpgm" ".pak" in
   let z = Zip.open_out pak in
-  Zip.add_entry (Bytes.to_string (Crypto.xor_transform key png)) z "www/img/a.png";
-  Zip.add_entry (Bytes.to_string (Crypto.xor_transform key png)) z "www/img/b.png";
+  Zip.add_entry
+    (Bytes.to_string (Crypto.xor_transform key png))
+    z "www/img/a.png";
+  Zip.add_entry
+    (Bytes.to_string (Crypto.xor_transform key png))
+    z "www/img/b.png";
   Zip.close_out z;
   (match Mz.open_pak pak with
-   | Ok zf ->
-       (match Mz.decrypt_all key zf with
-        | Ok es ->
-            check "mz 2 entries" (List.length es = 2);
-            check "mz order a,b"
-              (match es with
-               | a :: b :: _ -> a.Mz.entry_name = "www/img/a.png" && b.Mz.entry_name = "www/img/b.png"
-               | _ -> false);
-            check_bytes "mz entry a bytes" png (List.hd es).Mz.bytes
-        | _ -> check "mz multi decryptAll" false);
-       (try Zip.close_in zf with _ -> ())
-   | _ -> check "mz multi openPak" false);
+  | Ok zf -> (
+      (match Mz.decrypt_all key zf with
+      | Ok es ->
+          check "mz 2 entries" (List.length es = 2);
+          check "mz order a,b"
+            (match es with
+            | a :: b :: _ ->
+                a.Mz.entry_name = "www/img/a.png"
+                && b.Mz.entry_name = "www/img/b.png"
+            | _ -> false);
+          check_bytes "mz entry a bytes" png (List.hd es).Mz.bytes
+      | _ -> check "mz multi decryptAll" false);
+      try Zip.close_in zf with _ -> ())
+  | _ -> check "mz multi openPak" false);
   Sys.remove pak
 
 (* ---- Log escape + JSON ---------------------------------------------- *)
@@ -316,7 +436,14 @@ let test_log () =
   check "log escape quote/backslash" (Log.escape "a\"b\\c" = "a\\\"b\\\\c");
   check "log escape newline" (Log.escape "a\nb" = "a\\nb");
   let s = Types.run_summary_empty 0.0 in
-  let s = { s with Types.inputs_scanned = 3; decrypted_count = 2; per_format = [ (Types.MV, 2) ] } in
+  let s =
+    {
+      s with
+      Types.inputs_scanned = 3;
+      decrypted_count = 2;
+      per_format = [ (Types.MV, 2) ];
+    }
+  in
   let j = Log.summary_to_json s in
   check "log json MV:2" (contains j "\"MV\":2");
   check "log json scanned:3" (contains j "\"scanned\":3")
@@ -333,6 +460,10 @@ let () =
   test_mz_multi ();
   test_log ();
   test_report ();
-  Printf.printf "\n===== %d checks, %d passed, %d failed =====\n" !total !passed (List.length !fails);
+  Printf.printf "\n===== %d checks, %d passed, %d failed =====\n" !total !passed
+    (List.length !fails);
   List.iter (fun n -> Printf.printf "  FAIL %s\n" n) (List.rev !fails);
-  if !fails = [] then (print_endline "  ALL PASS"; exit 0) else exit 1
+  if !fails = [] then (
+    print_endline "  ALL PASS";
+    exit 0)
+  else exit 1

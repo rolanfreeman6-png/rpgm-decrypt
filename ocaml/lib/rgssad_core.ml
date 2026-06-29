@@ -8,22 +8,13 @@
    input is caught by the `pos + name_len > len` bounds check instead. Behaviour
    is identical (Truncated), just no negative-wrap to guard against. *)
 
-type entry =
-  { index : int
-  ; name : string
-  ; offset : int
-  ; size : int }
-
-type parse_error =
-  | ShortHeader
-  | BadMagic
-  | BadVersion of int
-  | Truncated
+type entry = { index : int; name : string; offset : int; size : int }
+type parse_error = ShortHeader | BadMagic | BadVersion of int | Truncated
 
 (** End-of-table rule — the only behavioural difference between XP and VX. *)
 type sentinel =
-  | NameLenZero      (* XP: name_len = 0 terminates the table *)
-  | SizeAndNameZero  (* VX: size = 0 && name_len = 0 terminates the table *)
+  | NameLenZero (* XP: name_len = 0 terminates the table *)
+  | SizeAndNameZero (* VX: size = 0 && name_len = 0 terminates the table *)
 
 let magic_key = Crypto.magic_rgssad_prefix
 
@@ -65,7 +56,8 @@ let parse (version : int) (sentinel : sentinel) (buf : bytes) :
   else begin
     let pos = ref 8 in
     let idx = ref 0 in
-    let acc = ref [] in (* reversed *)
+    let acc = ref [] in
+    (* reversed *)
     let keep = ref true in
     while !keep do
       if !pos + 12 > len then keep := false
