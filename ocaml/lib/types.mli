@@ -5,11 +5,11 @@
     is an association list (the key set is small and fixed). *)
 
 type format =
-  | XP  (** RPG Maker XP, archive {.rgssad} version 0x01. *)
-  | VX  (** RPG Maker VX, archive {.rgssad} version 0x02 or {.rgss2a}. *)
-  | VXAce  (** RPG Maker VX Ace, archive {.rgss3a} version 0x03. *)
+  | XP  (** RPG Maker XP, archive [.rgssad] version 0x01. *)
+  | VX  (** RPG Maker VX, archive [.rgssad] version 0x02 or [.rgss2a]. *)
+  | VXAce  (** RPG Maker VX Ace, archive [.rgss3a] version 0x03. *)
   | MV  (** RPG Maker MV, individual XOR-encrypted assets. *)
-  | MZ  (** RPG Maker MZ, {.pak} ZIP of MV-scheme encrypted assets. *)
+  | MZ  (** RPG Maker MZ, [.pak] ZIP of MV-scheme encrypted assets. *)
 
 val format_to_string : format -> string
 (** Canonical short name of a format ([XP], [VX], [VXAce], [MV], [MZ]). *)
@@ -45,7 +45,8 @@ type run_summary = {
   key_source : string;
   errors : (string * string) list;
 }
-(** End-of-run counters; [per_format] is an association list keyed by {!format}. *)
+(** End-of-run counters; [per_format] is an association list keyed by {!format}.
+*)
 
 val run_summary_empty : float -> run_summary
 (** [run_summary_empty now] is a summary with zeroed counters and [now] as both

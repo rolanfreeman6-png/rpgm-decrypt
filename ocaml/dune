@@ -14,6 +14,8 @@
 ;                            fuzz/fuzz.ml have no .mli by design (programs,
 ;                            not library modules).
 ; Warning 33 (unused-open) stays enabled: every `open Rpgm` is genuinely used.
+
 (env
  (release
-  (flags (:standard -warn-error +a-4-40-42-44-45-70))))
+  (flags
+   (:standard -warn-error +a-4-40-42-44-45-70))))

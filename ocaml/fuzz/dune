@@ -6,6 +6,11 @@
  (name fuzz)
  (libraries rpgm unix)
  (flags
-  (:standard -w +a-4-40-42-44-45-70 -strict-sequence -strict-formats -principal))
+  (:standard
+   -w
+   +a-4-40-42-44-45-70
+   -strict-sequence
+   -strict-formats
+   -principal))
  (ocamlopt_flags
   (:standard -afl-instrument)))

@@ -2,8 +2,11 @@
 
     Port of the F# [Log] module. *)
 
-type format = Human | Json
-(** Output style: [Human] (free text) or [Json] (one JSON object per line). *)
+type format =
+  | Human
+  | Json
+      (** Output style: [Human] (free text) or [Json] (one JSON object per
+          line). *)
 
 type event =
   | Walked of string * int64
@@ -14,7 +17,7 @@ type event =
   | Skipped of string * string
   | Failed of string * string
   | Summary of Types.run_summary
-(** A single log event emitted during a run. *)
+      (** A single log event emitted during a run. *)
 
 val escape : string -> string
 (** [escape s] JSON-escapes [s] (quote, backslash, control chars). *)
