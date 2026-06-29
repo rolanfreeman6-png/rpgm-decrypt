@@ -106,9 +106,10 @@ or `--vxace-seed <8hex>` (VX Ace).
 
 ## Build
 
+F# (secondary, self-contained .NET 10 single-file):
+
 ```text
-$ dotnet build -c Release
-$ dotnet publish src/RpgmDecrypt.Cli -c Release -r win-x64 \
+$ dotnet publish fsharp/src/RpgmDecrypt.Cli -c Release -r win-x64 \
     --self-contained true \
     -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true
@@ -116,45 +117,60 @@ $ ./bin/Release/net10.0/win-x64/publish/rpgm-decrypt.exe --help
 ```
 
 The resulting `.exe` is a single self-contained binary; copy it onto a
-machine with no .NET installed and it just runs.
+machine with no .NET installed and it just runs. For Linux/macOS, set
+`-r linux-x64` or `-r osx-arm64`. All magic-byte constants and crypto paths
+are pure managed code so no native compile step is required.
 
-For Linux/macOS, set `-r linux-x64` (musl) or `-r osx-arm64` respectively.
-All magic-byte constants and crypto paths are pure managed code so no
-native compile step is required.
+OCaml (flagship — statically-linked musl single binary, zero runtime deps):
+
+```text
+$ cd ocaml
+$ dune build --profile static bin/main.exe   # links libz + musl statically
+$ ./_build/default/bin/main.exe --version
+```
+
+`--profile static` adds `-cclib -static`; build it on Alpine (musl) for a
+true "runs on any x86-64 Linux" binary. `--profile release` builds a normal
+dynamically-linked binary for development.
 
 ## Layout
 
 ```
-src/
-  RpgmDecrypt.slnx
-  RpgmDecrypt.Core/      pure functional core (algorithm library)
-    Types.fs            Format, Outcome, RunSummary discriminated unions
-    Crypto.fs           XOR scheme + magic-byte helpers + hex decode
-    KeyDiscovery.fs     Auto-find System.json / scan rpg_core.js
-                         + --password-file validation against real cipher
-    Format.Mv.fs        MV/MZ XOR scheme + plaintext detection
-    Format.Mz.fs        .pak = ZIP + per-entry MV scheme
-    Format.Xp.fs        .rgssad v1 walker (size, offset, name_len, name)
-    Format.Vx.fs        .rgssad v2 walker (same layout as XP)
-    Format.VxAce.fs     .rgss3a walker + payload decrypt
-                         (offset, size, entry_key, name_len, name)
-    Walk.fs             Recursive file-system walker
-    Log.fs              NDJSON + human output
-    Report.fs           Final per-run summary, mirror-tree write
-  RpgmDecrypt.Cli/       executable front-end
-    the CLI module          Arg parser + glue
-  RpgmDecrypt.Tests/     in-process test runner + round-trip + golden-fixture tests
+ocaml/                 OCaml port — the flagship (static musl single binary)
+  lib/ bin/ test/ fuzz/   + narrow .mli (Gospel specs) + QCheck properties
+fsharp/                F# reference implementation + parity source of truth
+  src/
+    RpgmDecrypt.slnx
+    RpgmDecrypt.Core/      pure functional core (algorithm library)
+      Types.fs            Format, Outcome, RunSummary discriminated unions
+      Crypto.fs           XOR scheme + magic-byte helpers + hex decode
+      KeyDiscovery.fs     Auto-find System.json / scan rpg_core.js
+                           + --password-file validation against real cipher
+      Format.Mv.fs        MV/MZ XOR scheme + plaintext detection
+      Format.Mz.fs        .pak = ZIP + per-entry MV scheme
+      Format.Xp.fs        .rgssad v1 walker (size, offset, name_len, name)
+      Format.Vx.fs        .rgssad v2 walker (same layout as XP)
+      Format.VxAce.fs     .rgss3a walker + payload decrypt
+                           (offset, size, entry_key, name_len, name)
+      Walk.fs             Recursive file-system walker
+      Log.fs              NDJSON + human output
+      Report.fs           Final per-run summary, mirror-tree write
+    RpgmDecrypt.Cli/       executable front-end
+      the CLI module          Arg parser + glue
+    RpgmDecrypt.Tests/     in-process test runner + round-trip + golden-fixture tests
+.github/workflows/ci.yml  release workflow (tag-triggered; builds + ships)
+.gitlab-ci.yml            test rig (F# + OCaml tests, fuzz, verification) + mirror
 ```
 
 ## Test
 
 ```text
-$ dotnet run --project src/RpgmDecrypt.Tests -c Release
+$ dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release
 ```
 
 The test project is an executable (not a library) that runs an
 in-process test runner over the 10 test modules (101 assertions). There is
-no xUnit / NUnit dependency — see `src/RpgmDecrypt.Tests/TestFramework.fs`
+no xUnit / NUnit dependency — see `fsharp/src/RpgmDecrypt.Tests/TestFramework.fs`
 for the ~100-LoC runner.
 
 Fixture bytes are generated at test-time inside each `register ()` block.
@@ -164,36 +180,52 @@ exercise the synthetic fixtures before pointing the binary at a real game.
 
 ## Distribution (GitLab → GitHub)
 
-GitLab CI (`.gitlab-ci.yml`) is the build/test farm — it has the subscription
-minutes to run the heavy gates:
+GitLab is the build/test farm (it has the subscription minutes); GitHub is the
+clean distribution channel. **No GitHub PAT is needed** — an SSH deploy key is
+the only credential.
 
-- F# build + tests (`build-test`, `build-test-windows`)
-- OCaml port parity (`ocaml-build-test`, 72 checks) + property/Gospel verification
-  (`ocaml-verification`, 12 QCheck2 properties + `gospel check`)
-- Coverage-guided fuzzing (`ocaml-fuzz`, afl-fuzz 90s)
-- Product binaries:
-  - **`publish-ocaml`** (flagship) — OCaml statically-linked musl single binary,
-    `rpgm-decrypt-linux-x64`, zero runtime deps, runs on any x86-64 Linux
-  - `publish-linux` / `publish-windows` — F# self-contained secondary builds
-  - `publish-ocaml-windows` (manual) — OCaml native Windows `.exe`
+Flow:
 
-After **all** gates and the publish jobs pass, `github-release` creates a GitHub
-Release on `rolanfreeman6-png/rpgm-decrypt` and uploads the binaries — the OCaml
-static binary first (canonical name `rpgm-decrypt-linux-x64`), then the F#
-builds as `rpgm-decrypt-fsharp-*`:
+1. **GitLab CI** (`.gitlab-ci.yml`) runs the gates on every push: F# build+test
+   (`build-test`, `build-test-windows`), OCaml parity (`ocaml-build-test`,
+   72 checks), property/Gospel verification (`ocaml-verification`, 12 QCheck2
+   properties + `gospel check`), coverage-guided fuzzing (`ocaml-fuzz`,
+   afl-fuzz 90s).
+2. When the hard Linux gates are green, **`github-mirror`** pushes the ref to
+   GitHub over SSH using the deploy key: `main` mirrors `main`; a tag `v…`
+   mirrors the tag.
+3. The tag push **triggers GitHub Actions** (`.github/workflows/ci.yml`), which
+   builds the release binaries from that exact commit and publishes a GitHub
+   Release with the auto-provided `GITHUB_TOKEN`:
+   - **`rpgm-decrypt-linux-x64`** (flagship) — OCaml, statically-linked musl,
+     single file, zero runtime deps, runs on any x86-64 Linux; 72 parity checks
+     re-run on the static toolchain.
+   - `rpgm-decrypt` (F# linux-x64 / osx-arm64) and `rpgm-decrypt.exe`
+     (F# win-x64) — .NET 10 self-contained secondary builds.
 
-- push to `main` → `continuous` prerelease (overwritten each push)
-- tag `v…` → stable release
+Day-to-day CI stays on GitLab; GitHub Actions fires only on tags (releases), so
+it costs ~one release-worth of minutes per tag (private-repo Actions budget).
 
-Setup (one-time): add a CI/CD variable `GITHUB_RELEASE_TOKEN` in GitLab →
-Settings → CI/CD → Variables — a GitHub PAT with **Contents read/write** on
-`rolanfreeman6-png/rpgm-decrypt` (classic PAT: `repo` scope; fine-grained:
-"Contents: Read and write"). Mark it masked + protected, and mark `main` as a
-protected branch so the protected variable reaches the release job. Without it
-the release job fails fast with a clear message and nothing is shipped.
+One-time setup:
 
-GitHub is the clean distribution channel — releases land there once GitLab has
-verified them.
+1. **Add the SSH public key as a deploy key (write) on GitHub** — once, on a
+   machine where `gh` works:
+   ```sh
+   gh api -X POST repos/rolanfreeman6-png/rpgm-decrypt/keys \
+     -f title=gitlab-ci-mirror \
+     -f key="$(cat id_ed25519_gitlab_mirror.pub)" \
+     -F read_only=false
+   ```
+   (or Settings → Deploy keys → Add deploy key, tick "Allow write access").
+2. **Add the matching SSH private key to GitLab** → Settings → CI/CD →
+   Variables → `GH_SSH_PRIVATE_KEY` (Masked ✓, Protected ✓). Paste the private
+   key file contents (`-----BEGIN OPENSSH PRIVATE KEY-----` … `-----END …`).
+3. **Protect `main`** (Settings → Repository → Protected branches) so the
+   protected variable reaches the `github-mirror` job.
+
+Without `GH_SSH_PRIVATE_KEY` the mirror job fails fast with a clear message and
+nothing is pushed to GitHub. Releasing: `git tag v0.3.0 && git push gitlab v0.3.0`
+→ GitLab tests → mirror → GitHub Actions builds + publishes the Release.
 
 ## License
 

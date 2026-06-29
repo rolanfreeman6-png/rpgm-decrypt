@@ -40,55 +40,55 @@ exit 0
 |---|---|---|
 | `.github/workflows/ci.yml` | GitHub Actions: 3-OS matrix (ubuntu/windows/macos), build + test + publish self-contained binaries | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/.github/workflows/ci.yml) |
 | `.gitignore` | Исключения: bin/obj/artifacts, real-game fixtures | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/.gitignore) |
-| `src/RpgmDecrypt.slnx` | .NET solution (новый XML-формат .slnx) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.slnx) |
+| `fsharp/src/RpgmDecrypt.slnx` | .NET solution (новый XML-формат .slnx) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.slnx) |
 
-### Core Library (`src/RpgmDecrypt.Core/`)
+### Core Library (`fsharp/src/RpgmDecrypt.Core/`)
 
 Чистая функциональная библиотека алгоритмов — без I/O-side-effects кроме
 явно помеченных функций.
 
 | Файл | LoC | Назначение | GitHub |
 |---|---:|---|---|
-| `Types.fs` | ~90 | `Format` DU (XP/VX/VxAce/MV/MZ), `Outcome`, `RunSummary` | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Types.fs) |
-| `Crypto.fs` | ~120 | XOR-примитивы, magic-byte константы, hex-decode, `looksLikePlaintext` | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Crypto.fs) |
-| `VxAceKey.fs` | ~80 | RGSS3 key derivation (`seed*9+3`), filename XOR, payload rotating XOR (`key*7+3`) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/VxAceKey.fs) |
-| `KeyDiscovery.fs` | ~130 | Auto-find ключа: `www/js/System.json` → `www/data/System.json` → `rpg_core.js` → `*.js` sweep. Wordlist validation. | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/KeyDiscovery.fs) |
-| `Format.Mv.fs` | ~80 | MV/MZ XOR-decrypt + plaintext detection (PNG/OGG/M4A/WebP/JPG) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.Mv.fs) |
-| `Format.Mz.fs` | ~60 | MZ `.pak` = ZIP + per-entry MV XOR | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.Mz.fs) |
-| `RgssadCore.fs` | ~110 | Shared XP+VX `.rgssad` parser: header check, entry-table loop (sentinel DU), bounds/negative-nameLen guard, filename XOR, readEntry | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/RgssadCore.fs) |
-| `Format.Xp.fs` | ~45 | XP `.rgssad` v1: thin wrapper over `RgssadCore` (version `0x01`, `name_len=0` sentinel) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.Xp.fs) |
-| `Format.Vx.fs` | ~42 | VX `.rgssad` v2: thin wrapper over `RgssadCore` (version `0x02`, `size=0 && name_len=0` sentinel) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.Vx.fs) |
-| `Format.VxAce.fs` | ~150 | VXAce `.rgss3a` v3: master-seed → masterKey → offset/size/key/nameLen/names + payload decrypt | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.VxAce.fs) |
-| `Format.fs` | ~100 | Top-level dispatcher: classify by extension + magic bytes → Format | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Format.fs) |
-| `Walk.fs` | ~55 | Recursive directory walker, extension filter | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Walk.fs) |
-| `Log.fs` | ~95 | NDJSON + human-readable log sinks (stderr) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Log.fs) |
-| `Report.fs` | ~190 | Orchestrator: walk → classify → decrypt → write mirror-tree → RunSummary | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Core/Report.fs) |
+| `Types.fs` | ~90 | `Format` DU (XP/VX/VxAce/MV/MZ), `Outcome`, `RunSummary` | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Types.fs) |
+| `Crypto.fs` | ~120 | XOR-примитивы, magic-byte константы, hex-decode, `looksLikePlaintext` | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Crypto.fs) |
+| `VxAceKey.fs` | ~80 | RGSS3 key derivation (`seed*9+3`), filename XOR, payload rotating XOR (`key*7+3`) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/VxAceKey.fs) |
+| `KeyDiscovery.fs` | ~130 | Auto-find ключа: `www/js/System.json` → `www/data/System.json` → `rpg_core.js` → `*.js` sweep. Wordlist validation. | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/KeyDiscovery.fs) |
+| `Format.Mv.fs` | ~80 | MV/MZ XOR-decrypt + plaintext detection (PNG/OGG/M4A/WebP/JPG) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.Mv.fs) |
+| `Format.Mz.fs` | ~60 | MZ `.pak` = ZIP + per-entry MV XOR | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.Mz.fs) |
+| `RgssadCore.fs` | ~110 | Shared XP+VX `.rgssad` parser: header check, entry-table loop (sentinel DU), bounds/negative-nameLen guard, filename XOR, readEntry | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/RgssadCore.fs) |
+| `Format.Xp.fs` | ~45 | XP `.rgssad` v1: thin wrapper over `RgssadCore` (version `0x01`, `name_len=0` sentinel) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.Xp.fs) |
+| `Format.Vx.fs` | ~42 | VX `.rgssad` v2: thin wrapper over `RgssadCore` (version `0x02`, `size=0 && name_len=0` sentinel) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.Vx.fs) |
+| `Format.VxAce.fs` | ~150 | VXAce `.rgss3a` v3: master-seed → masterKey → offset/size/key/nameLen/names + payload decrypt | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.VxAce.fs) |
+| `Format.fs` | ~100 | Top-level dispatcher: classify by extension + magic bytes → Format | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Format.fs) |
+| `Walk.fs` | ~55 | Recursive directory walker, extension filter | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Walk.fs) |
+| `Log.fs` | ~95 | NDJSON + human-readable log sinks (stderr) | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Log.fs) |
+| `Report.fs` | ~190 | Orchestrator: walk → classify → decrypt → write mirror-tree → RunSummary | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Core/Report.fs) |
 
-### CLI (`src/RpgmDecrypt.Cli/`)
+### CLI (`fsharp/src/RpgmDecrypt.Cli/`)
 
 | Файл | LoC | Назначение | GitHub |
 |---|---:|---|---|
-| `the CLI module` | ~180 | Arg parser, key resolution (--password/--password-file/--vxace-seed/auto), exit codes | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Cli/the CLI module) |
+| `the CLI module` | ~180 | Arg parser, key resolution (--password/--password-file/--vxace-seed/auto), exit codes | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Cli/the CLI module) |
 
-### Tests (`src/RpgmDecrypt.Tests/`)
+### Tests (`fsharp/src/RpgmDecrypt.Tests/`)
 
 In-process test runner (без xUnit/NUnit зависимостей).
 
 | Файл | Tests | Что проверяет | GitHub |
 |---|---:|---|---|
-| `TestFramework.fs` | — | ~100 LoC runner: register/snapshot/runAll/assertEqual/assertByteEqual | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/TestFramework.fs) |
-| `Generator.fs` | — | Synthetic-but-realistic MV game fixture builder + MZ .pak + XP .rgssad | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/Generator.fs) |
-| `TypesTests.fs` | 3 | Format DU mapping, RunSummary.tally | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/TypesTests.fs) |
-| `CryptoTests.fs` | 9 | hex-decode, XOR inverse, zero-key identity, magic detection, invalid-input rejection | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/CryptoTests.fs) |
-| `KeyDiscoveryTests.fs` | 3 | System.json key find, wordlist validation, empty wordlist rejection | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/KeyDiscoveryTests.fs) |
-| `FormatMvTests.fs` | 3 | Plaintext PNG, XOR-encrypted PNG, wrong-key Unsure | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/FormatMvTests.fs) |
-| `FormatMzTests.fs` | 2 | Non-ZIP rejection, synthetic Pak decrypt | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/FormatMzTests.fs) |
-| `FormatXpTests.fs` | 3 | Real-layout parse, bad magic, bad version | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/FormatXpTests.fs) |
-| `FormatVxTests.fs` | 4 | v2 round-trip, bad magic, bad version, negative-nameLen guard | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/FormatVxTests.fs) |
-| `FormatVxAceTests.fs` | 5 | End-to-end encrypt+parse+decrypt, master-key formula, negative-nameLen regression, bad magic, bad version | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/FormatVxAceTests.fs) |
-| `EndToEndTests.fs` | 4 | MV .png_ round-trip; safeJoin unit; MZ Zip-Slip blocked; MZ nested-path preserved | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/EndToEndTests.fs) |
-| `EndToEndRealFixtureTests.fs` | 5 | Full MV pipeline, MZ .pak, XP .rgssad, plaintext pass-through, dry-run | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/EndToEndRealFixtureTests.fs) |
-| `Main.fs` | — | EntryPoint: registers all test modules, runs TestFramework.runAll | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/src/RpgmDecrypt.Tests/Main.fs) |
+| `TestFramework.fs` | — | ~100 LoC runner: register/snapshot/runAll/assertEqual/assertByteEqual | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/TestFramework.fs) |
+| `Generator.fs` | — | Synthetic-but-realistic MV game fixture builder + MZ .pak + XP .rgssad | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/Generator.fs) |
+| `TypesTests.fs` | 3 | Format DU mapping, RunSummary.tally | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/TypesTests.fs) |
+| `CryptoTests.fs` | 9 | hex-decode, XOR inverse, zero-key identity, magic detection, invalid-input rejection | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/CryptoTests.fs) |
+| `KeyDiscoveryTests.fs` | 3 | System.json key find, wordlist validation, empty wordlist rejection | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/KeyDiscoveryTests.fs) |
+| `FormatMvTests.fs` | 3 | Plaintext PNG, XOR-encrypted PNG, wrong-key Unsure | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/FormatMvTests.fs) |
+| `FormatMzTests.fs` | 2 | Non-ZIP rejection, synthetic Pak decrypt | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/FormatMzTests.fs) |
+| `FormatXpTests.fs` | 3 | Real-layout parse, bad magic, bad version | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/FormatXpTests.fs) |
+| `FormatVxTests.fs` | 4 | v2 round-trip, bad magic, bad version, negative-nameLen guard | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/FormatVxTests.fs) |
+| `FormatVxAceTests.fs` | 5 | End-to-end encrypt+parse+decrypt, master-key formula, negative-nameLen regression, bad magic, bad version | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/FormatVxAceTests.fs) |
+| `EndToEndTests.fs` | 4 | MV .png_ round-trip; safeJoin unit; MZ Zip-Slip blocked; MZ nested-path preserved | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/EndToEndTests.fs) |
+| `EndToEndRealFixtureTests.fs` | 5 | Full MV pipeline, MZ .pak, XP .rgssad, plaintext pass-through, dry-run | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/EndToEndRealFixtureTests.fs) |
+| `Main.fs` | — | EntryPoint: registers all test modules, runs TestFramework.runAll | [→](https://github.com/rolanfreeman6-png/rpgm-decrypt/blob/main/fsharp/src/RpgmDecrypt.Tests/Main.fs) |
 
 ---
 
@@ -139,8 +139,8 @@ rpgm-decrypt [OPTIONS] <game_dir> [<out_dir>]
 
 ```bash
 dotnet build -c Release
-dotnet run --project src/RpgmDecrypt.Tests -c Release     # 101 assertions
-dotnet publish src/RpgmDecrypt.Cli -c Release -r win-x64 \
+dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release     # 101 assertions
+dotnet publish fsharp/src/RpgmDecrypt.Cli -c Release -r win-x64 \
     --self-contained true -p:PublishSingleFile=true \
     -p:IncludeNativeLibrariesForSelfExtract=true          # single .exe
 ```
