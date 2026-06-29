@@ -1,8 +1,7 @@
 (** RGSS3 (VX Ace) key derivation and payload decryption.
 
-    The F# version used [uint32] arithmetic (wrapping at 2^32); OCaml [int] is
-    63-bit, so every multiply is masked with {!u32} to reproduce the wraparound
-    exactly. *)
+    The arithmetic wraps at 2^32; OCaml [int] is 63-bit, so every multiply is
+    masked with {!u32} to reproduce the wraparound exactly. *)
 
 (* Uninterpreted helpers: Gospel 0.3.1 ships no Bytes/String theory, so the
    bytes/string operations below are axiomatised as uninterpreted logic

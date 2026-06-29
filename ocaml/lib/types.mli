@@ -1,8 +1,8 @@
 (** RPG Maker engine formats, per-file outcomes, and run summaries.
 
-    The F# [Format] discriminated union, [DetectedFile]/[Outcome] records and
-    [RunSummary] become OCaml variants/records; the F# [Map<Format,int>] tally
-    is an association list (the key set is small and fixed). *)
+    [format] is a variant over the five engine generations; [detected_file],
+    [outcome], and [run_summary] are records; the per-format tally is an
+    association list (the key set is small and fixed). *)
 
 type format =
   | XP  (** RPG Maker XP, archive [.rgssad] version 0x01. *)

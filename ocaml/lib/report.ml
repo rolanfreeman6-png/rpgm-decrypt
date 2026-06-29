@@ -88,7 +88,7 @@ let safe_join (out_dir : string) (rel : string) : string option =
 let to_local (rel : string) : string =
   String.map (fun c -> if c = '\\' then '/' else c) rel
 
-(* error -> string (mirrors F# sprintf "%A") *)
+(* error -> string (human-readable variant name) *)
 let rgssad_err_str = function
   | Rgssad_core.ShortHeader -> "ShortHeader"
   | Rgssad_core.BadMagic -> "BadMagic"

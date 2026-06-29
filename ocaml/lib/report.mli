@@ -1,5 +1,5 @@
 (** Orchestrator: walk -> classify -> decrypt -> write a mirror tree, building a
-    run summary. Port of the F# [Report] module.
+    run summary.
 
     Includes the Zip-Slip path-containment check ({!safe_join}) and the MZ
     [rename_by_kind] argument-order fix. *)

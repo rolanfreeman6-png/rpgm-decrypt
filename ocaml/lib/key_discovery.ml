@@ -1,10 +1,10 @@
-(* Source — find the MV/MZ key without user input, plus
-   wordlist validation against real cipher. Uses yojson (System.json) and re
-   (rpg_core.js literal scan). We never evaluate JavaScript. *)
+(* Find the MV/MZ key without user input, plus wordlist validation against a
+   real cipher. Uses yojson (System.json) and re (rpg_core.js literal scan).
+   We never evaluate JavaScript. *)
 
 type key_result = Found of bytes * string | NotFound of string
 
-(* ---- regexes (faithful to the F# .NET patterns) ---------------------- *)
+(* ---- regexes for the key literal scan -------------------------------- *)
 let re1 =
   Re.Pcre.re ~flags:[ `CASELESS ]
     {|Decrypter\._encryptionKey\s*=\s*\["\\x"\s*,\s*"([0-9a-fA-F]{32})"|}

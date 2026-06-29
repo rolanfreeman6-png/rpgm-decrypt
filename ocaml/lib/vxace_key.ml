@@ -1,6 +1,6 @@
-(* Source — RGSS3 (VX Ace) key derivation + payload decryption.
-   F# used uint32 arithmetic (wraps at 2^32). OCaml int is 63-bit, so we mask
-   with [u32] after each multiply to reproduce the wraparound exactly. *)
+(* RGSS3 (VX Ace) key derivation + payload decryption. The arithmetic wraps at
+   2^32; OCaml `int` is 63-bit, so we mask with [u32] after each multiply to
+   reproduce the wraparound exactly. *)
 
 let u32 x = x land 0xFFFFFFFF
 

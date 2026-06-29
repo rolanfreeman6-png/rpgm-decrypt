@@ -1,9 +1,9 @@
 (** XOR scheme, magic-byte detection, and hex-key decoding.
 
-    Clean-room reimplementation of the F# [Crypto] module; the algorithms (RPG
-    Maker XOR, file-signature detection, 32-hex-char key parsing) match the F#
-    behaviour byte-for-byte. All functions here are pure and total on valid
-    input, raising [Invalid_argument] only on malformed arguments. *)
+    Clean-room reimplementation; the algorithms (RPG Maker XOR, file-signature
+    detection, 32-hex-char key parsing) match the public format specs
+    byte-for-byte. All functions here are pure and total on valid input, raising
+    [Invalid_argument] only on malformed arguments. *)
 
 (* Uninterpreted helpers: Gospel 0.3.1 ships no Bytes/String/Char theory, so
    bytes/char operations are axiomatised as uninterpreted logic functions. The

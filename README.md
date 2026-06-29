@@ -8,7 +8,7 @@
 
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Formats](https://img.shields.io/badge/formats-XP%20·%20VX%20·%20VXAce%20·%20MV%20·%20MZ-2ea44f)
-![Built with](https://img.shields.io/badge/built%20with-OCaml%20·%20F%23-ff7a18)
+![Built with](https://img.shields.io/badge/built%20with-OCaml-ff7a18)
 ![Single binary](https://img.shields.io/badge/single%20binary-zero%20runtime%20deps-brightgreen)
 ![Fuzzed](https://img.shields.io/badge/fuzzed-21M%2B%20iters%20·%200%20crashes-success)
 ![Verified](https://img.shields.io/badge/parser-Gospel%20·%20Why3%20verified-8a2be2)
@@ -151,12 +151,12 @@ that's the part a senior engineer notices:
 
 | Discipline | What it means here |
 |---|---|
-| 🧬 **Two implementations, kept in lockstep** | An **OCaml** flagship and an **F#** reference, tested **byte-for-byte** against each other (72 parity checks). If they ever disagree, CI goes red. |
+| 🧬 **Pure functional core** | Narrow `.mli` per module, 72 behavioural checks + 12 QCheck property tests, mutation-tested (7/7 mutants killed). |
 | 💥 **Fuzzed against chaos** | **21M+** mutated/garbage inputs, **0 crashes** — plus coverage-guided `afl-fuzz` in CI. It does not fall over on broken files. |
 | 📐 **Property-based tests** | Invariants, not examples: *"XOR is its own inverse for any key & data"*, *"a path can never escape the output root"*. |
-| 🔒 **Formally verified core** | The parser carries **Gospel** contracts; its key safety properties — bounds, little-endian decode, and the no-path-escape (Zip-Slip) invariant — are **machine-checked by Why3 / Alt-Ergo**. ([details](ocaml/README.md#formal-verification--guarantees)) |
+| 🔒 **Formally verified core** | The parser carries **Gospel** contracts; its key safety properties — bounds, little-endian decode, and the no-path-escape (Zip-Slip) invariant — are **machine-checked by Why3 / Z3**. ([details](ocaml/README.md#formal-verification--guarantees)) |
 | 🧹 **Zero-warning, formatted, clean-room** | Builds warning-as-error, `ocamlformat`-canonical, Apache-2.0, no decompiled code. |
-| 🔁 **CI on every push** | Linux + Windows build/test, security scanners (SAST, Secret & Dependency scanning), fuzzing, verification. |
+| 🔁 **CI on every push** | Linux + Windows build/test, security scanners (SAST, Secret scanning), fuzzing, verification. |
 
 > [!CAUTION]
 > The decrypter is built for **robustness on adversarial input** on purpose: it parses
@@ -182,29 +182,14 @@ For a portable, statically-linked Linux binary, build on Alpine (musl) with
 </details>
 
 <details>
-<summary><b>F# (reference — self-contained .NET 10)</b></summary>
-
-```bash
-dotnet publish fsharp/src/RpgmDecrypt.Cli -c Release -r win-x64 \
-  --self-contained true \
-  -p:PublishSingleFile=true \
-  -p:IncludeNativeLibrariesForSelfExtract=true
-```
-
-Swap `-r linux-x64` / `-r osx-arm64` for other platforms. The output `.exe`
-runs on a machine with no .NET installed.
-
-</details>
-
-<details>
 <summary><b>Run the tests</b></summary>
 
 ```bash
-# OCaml: 72 parity checks + property tests
+# OCaml: 72 behavioural checks + 12 QCheck property tests
 cd ocaml && dune exec --profile release test/test.exe
 
-# F#: in-process runner, 100+ assertions, no xUnit dependency
-dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release
+# QCheck properties (needs `opam install qcheck`)
+cd ocaml && dune exec --profile release test/prop/prop.exe
 ```
 
 Test fixtures are generated synthetically at test time — we never commit real
@@ -219,12 +204,9 @@ RPG Maker game bytes, to keep the repo licensing-clean.
 ocaml/                  OCaml flagship — single native binary
   lib/                    pure core + narrow .mli (Gospel specs)
   bin/                    CLI front-end
-  test/  test/prop/       parity checks + QCheck properties
+  test/  test/prop/       behavioural checks + QCheck properties
   fuzz/                   afl-instrumented fuzz target
-fsharp/src/             F# reference implementation (parity source of truth)
-  RpgmDecrypt.Core/         algorithm library (Crypto, Formats, KeyDiscovery…)
-  RpgmDecrypt.Cli/          executable front-end
-  RpgmDecrypt.Tests/        in-process test runner
+  proofs/                 Why3 + Z3 deductive verification (Zip-Slip, bounds)
 .gitlab-ci.yml          test + fuzz + verification farm
 .github/workflows/      tag-triggered release builds
 ```

@@ -1,7 +1,7 @@
 # Mutation testing report — OCaml port
 
 Manual smoke mutation campaign (no `mutaml` dependency: a PowerShell driver
-applies one mutation at a time, rebuilds, runs the parity suite
+applies one mutation at a time, rebuilds, runs the behavioural suite
 (`test/test.exe`) and the QCheck property suite (`test/prop/prop.exe`) as the
 oracle, records KILLED/SURVIVED, then restores the original source from an
 in-memory copy). A mutation is **killed** if either suite exits non-zero.
@@ -9,7 +9,7 @@ in-memory copy). A mutation is **killed** if either suite exits non-zero.
 ## Methodology
 
 - Driver: `mutate.ps1` (kept out of the repo; reproducible from this report).
-- Oracle: `dune exec test/test.exe` (parity, 72 checks) **and**
+- Oracle: `dune exec test/test.exe` (behavioural, 72 checks) **and**
   `dune exec test/prop/prop.exe` (QCheck2, 12 properties, seed 42).
 - Each mutation is a single literal source edit; the driver verifies the
   find-string is present (NOT-APPLIED otherwise) and restores the original
@@ -34,7 +34,7 @@ Summary: killed=4, survived=2, not-applied=1.
 ### Survivor analysis (real coverage gaps found)
 
 - **M4 survived**: `read_u32_le` byte1 shift `lsl 8 → lsl 16` was not detected.
-  Root cause: the parity tests only round-trip u32 values `< 256`, which fit in
+  Root cause: the behavioural tests only round-trip u32 values `< 256`, which fit in
   byte 0, so a wrong shift on bytes 1..3 has no effect. The property tests only
   check totality (no throw), not value correctness. **Gap**: high bytes of u32
   parsing were untested.
@@ -48,7 +48,7 @@ Summary: killed=4, survived=2, not-applied=1.
 
 ### Fixes (test-suite improvements from the findings)
 
-Added 4 parity checks to `test/test.ml`:
+Added 4 behavioural checks to `test/test.ml`:
 
 - `rgssad read_u32_le 0x12345678` — round-trips a value with non-zero bytes
   1..3, killing M4 and any byte-shift mutation in `read_u32_le`.

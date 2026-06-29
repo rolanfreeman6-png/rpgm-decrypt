@@ -7,7 +7,6 @@ obj/
 *.user
 *.suo
 .vs/
-.fake/
 
 # ...but ocaml/bin/ is the OCaml CLI *source* directory, not build output.
 # The generic bin/ rule above would otherwise drop the entire CLI from the repo.
@@ -20,11 +19,6 @@ coverage/
 *.coverage
 coverage.xml
 *.trx
-
-# F# specific
-*.fs.lock
-.fsharp/
-.fsproj.user
 
 # Native AOT publish
 publish/

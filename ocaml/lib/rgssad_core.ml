@@ -1,12 +1,11 @@
-(* Source — shared XP (0x01) + VX (0x02) `.rgssad` parser.
-   Identical layout `size|offset|name_len|name`, filenames XOR'd with the
-   7-byte RGSSAD magic; the version byte and end-of-table sentinel differ.
+(* Shared XP (0x01) + VX (0x02) `.rgssad` parser. Identical layout
+   `size|offset|name_len|name`, filenames XOR'd with the 7-byte RGSSAD magic;
+   the version byte and end-of-table sentinel differ.
 
-   Note vs F#: F# read each field as uint32 then cast to int32 (which could go
-   negative on a high-bit length, caught by `nameLenInt < 0`). OCaml's int is
-   63-bit, so a 0xFFFFFFFx length stays a large POSITIVE int — the same corrupt
-   input is caught by the `pos + name_len > len` bounds check instead. Behaviour
-   is identical (Truncated), just no negative-wrap to guard against. *)
+   Length fields are read as little-endian 32-bit words into OCaml's 63-bit
+   `int`: a corrupt high-bit length stays a large POSITIVE int and is caught by
+   the `pos + name_len > len` bounds check (Truncated), never causing an
+   out-of-bounds access. *)
 
 type entry = { index : int; name : string; offset : int; size : int }
 type parse_error = ShortHeader | BadMagic | BadVersion of int | Truncated

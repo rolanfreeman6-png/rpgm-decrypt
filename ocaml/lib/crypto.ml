@@ -1,6 +1,5 @@
-(* Source — XOR scheme + magic-byte helpers + hex decode.
-   F# byte[] -> OCaml bytes throughout. Clean-room reimplementation;
-   same references as the F# version (rpgmakerweb.com docs, community wikis). *)
+(* XOR scheme, magic-byte helpers, and hex decode. Clean-room reimplementation
+   from public format docs (rpgmakerweb.com) and community wikis. *)
 
 (* ---- Magic-byte constants (as bytes) ---------------------------------- *)
 let magic_mv_header = Bytes.of_string "RPGMV"

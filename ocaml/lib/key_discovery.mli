@@ -1,7 +1,7 @@
 (** MV/MZ encryption-key discovery without user input, plus wordlist validation.
 
-    Port of the F# [KeyDiscovery] module. Uses yojson (System.json) and re
-    (rpg_core.js literal scan); JavaScript is never evaluated. *)
+    Uses yojson (System.json) and re (rpg_core.js literal scan); JavaScript is
+    never evaluated. *)
 
 type key_result =
   | Found of bytes * string

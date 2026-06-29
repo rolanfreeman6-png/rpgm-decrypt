@@ -30,8 +30,8 @@ license obligations.
 - Tests for the change must be in the same PR (TDD: failing test → fix → pass).
 - Commit messages: imperative mood, present tense, ≤72 chars; body explains
   the WHY.
-- Run `dotnet build` and `dotnet test` locally before submitting.
-- Run `dotnet format` to keep formatting canonical.
+- Run `dune build --profile release` and `dune exec --profile release test/test.exe` locally before submitting.
+- Run `dune build @fmt` (ocamlformat) to keep formatting canonical.
 
 ## Format-spec references
 
@@ -47,7 +47,7 @@ When implementing a new format parser, link to one of these in the file:
 
 Please include:
 
-- OS + .NET runtime version (`dotnet --info`).
+- OS + OCaml version (`ocaml --version`) + dune version.
 - RPG Maker game name + engine version (visible in `<game>/www/js/rpg_core.js`
   constants or `package.json` of an MZ game).
 - A *small* (≤1 file) reproducer: a game directory tree marked down to one

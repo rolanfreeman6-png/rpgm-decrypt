@@ -4,10 +4,10 @@
     filenames are XOR-obfuscated with the 7-byte RGSSAD magic. Only the
     end-of-table sentinel differs between XP and VX (see {!sentinel}).
 
-    Note vs F#: F# read each length field as [uint32] then cast to [int32], so a
-    high-bit length went negative and was caught by [< 0]; OCaml's 63-bit [int]
-    keeps it a large positive, caught by the [pos + len > buf_len] bounds check
-    instead. Behaviour is identical ([Truncated]), with no negative wrap. *)
+    Length fields are read as little-endian 32-bit words into OCaml's 63-bit
+    [int]; a corrupt high-bit length stays a large positive, caught by the
+    [pos + len > buf_len] bounds check instead of a negative-wrap guard. Result
+    is [Truncated], never an out-of-bounds access. *)
 
 (* Uninterpreted helpers (Gospel 0.3.1 has no Bytes/String theory). *)
 (*@ function bytes_length (b: bytes) : integer *)
