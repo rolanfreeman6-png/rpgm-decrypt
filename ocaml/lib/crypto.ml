@@ -7,8 +7,7 @@ let magic_mv_header = Bytes.of_string "RPGMV"
 let magic_mz_header = Bytes.of_string "RPGMZ"
 
 (* 7 bytes "RGSSAD\0" — explicit so no escape-handling surprise. *)
-let magic_rgssad_prefix =
-  Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00"
+let magic_rgssad_prefix = Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00"
 
 (* PNG signature (RFC 2083) — 0x89 is outside ASCII, hard-coded. *)
 let magic_png = Bytes.of_string "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A"
@@ -19,8 +18,8 @@ let magic_webp = Bytes.of_string "WEBP"
 let magic_jpg = Bytes.of_string "\xFF\xD8\xFF"
 
 (** Equality of a fixed-size substring inside a larger buffer. *)
-let sub_array_eq (offset : int) (length : int) (expected : bytes) (arr : bytes) :
-    bool =
+let sub_array_eq (offset : int) (length : int) (expected : bytes) (arr : bytes)
+    : bool =
   if Bytes.length arr < offset + length then false
   else if Bytes.length expected < length then false
   else begin
@@ -40,11 +39,11 @@ let starts_with (prefix : bytes) (arr : bytes) : bool =
 let looks_like_plaintext (head : bytes) : bool =
   if Bytes.length head = 0 then false
   else
-    starts_with magic_png head
-    || starts_with magic_ogg head
+    starts_with magic_png head || starts_with magic_ogg head
     || starts_with magic_jpg head
-    || (Bytes.length head >= 12 && starts_with magic_riff head
-       && sub_array_eq 8 4 magic_webp head)
+    || Bytes.length head >= 12
+       && starts_with magic_riff head
+       && sub_array_eq 8 4 magic_webp head
     || (Bytes.length head >= 8 && sub_array_eq 4 4 magic_m4a head)
 
 (** Single hex character -> 0..15. Raises on bad char. *)

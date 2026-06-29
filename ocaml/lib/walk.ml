@@ -2,14 +2,28 @@
    (walkWithProgress from the F# version was dead code and is not ported.) *)
 
 let candidate_extensions =
-  [ ".rgssad"; ".rgss2a"; ".rgss3a"
-  ; ".png_"; ".ogg_"; ".m4a_"
-  ; ".rpgmvp"; ".rpgmvo"; ".rpgmvm"
-  ; ".pak"
-  ; ".png"; ".ogg"; ".m4a"; ".webp"; ".jpg" ]
+  [
+    ".rgssad";
+    ".rgss2a";
+    ".rgss3a";
+    ".png_";
+    ".ogg_";
+    ".m4a_";
+    ".rpgmvp";
+    ".rpgmvo";
+    ".rpgmvm";
+    ".pak";
+    ".png";
+    ".ogg";
+    ".m4a";
+    ".webp";
+    ".jpg";
+  ]
 
 let has_interesting_extension (path : string) : bool =
-  List.mem (String.lowercase_ascii (Filename.extension path)) candidate_extensions
+  List.mem
+    (String.lowercase_ascii (Filename.extension path))
+    candidate_extensions
 
 let file_size (path : string) : int64 =
   In_channel.with_open_bin path In_channel.length
@@ -31,11 +45,11 @@ let rec all_files (dir : string) : string list =
   | names ->
       Array.to_list names
       |> List.concat_map (fun name ->
-             let p = Filename.concat dir name in
-             match Sys.is_directory p with
-             | true -> all_files p
-             | false -> [ p ]
-             | exception _ -> [])
+          let p = Filename.concat dir name in
+          match Sys.is_directory p with
+          | true -> all_files p
+          | false -> [ p ]
+          | exception _ -> [])
 
 let walk (root_dir : string) : Types.detected_file list =
   if not (Sys.file_exists root_dir) then []
@@ -44,12 +58,14 @@ let walk (root_dir : string) : Types.detected_file list =
     all_files root_dir
     |> List.filter has_interesting_extension
     |> List.filter_map (fun path ->
-           match Dispatch.classify path with
-           | Some fmt ->
-               Some
-                 Types.
-                   { abs_path = path
-                   ; rel_path = relative_to root_dir path
-                   ; size_bytes = file_size path
-                   ; format = fmt }
-           | None -> None)
+        match Dispatch.classify path with
+        | Some fmt ->
+            Some
+              Types.
+                {
+                  abs_path = path;
+                  rel_path = relative_to root_dir path;
+                  size_bytes = file_size path;
+                  format = fmt;
+                }
+        | None -> None)

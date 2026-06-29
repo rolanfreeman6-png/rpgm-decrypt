@@ -17,9 +17,9 @@ let classify (abs_path : string) : Types.format option =
       else -1
     in
     match ext with
-    | ".rgssad" ->
+    | ".rgssad" -> (
         if Bytes.length first_bytes < 8 then Some Types.XP
-        else (
+        else
           match ver_at7 () with
           | 0x01 -> Some Types.XP
           | 0x02 -> Some Types.VX
@@ -32,12 +32,13 @@ let classify (abs_path : string) : Types.format option =
     | ".rpgmvp" | ".rpgmvo" | ".rpgmvm" -> Some Types.MV
     | ".png" | ".ogg" | ".m4a" | ".webp" | ".jpg" -> Some Types.MV
     | _ ->
-        if Crypto.is_rgssad_magic first_bytes && Bytes.length first_bytes >= 8 then (
+        if Crypto.is_rgssad_magic first_bytes && Bytes.length first_bytes >= 8
+        then
           match ver_at7 () with
           | 0x01 -> Some Types.XP
           | 0x02 -> Some Types.VX
           | 0x03 -> Some Types.VXAce
-          | _ -> Some Types.XP)
+          | _ -> Some Types.XP
         else if Crypto.is_zip_magic first_bytes then Some Types.MZ
         else if Crypto.is_mv_magic_header first_bytes then Some Types.MV
         else if Crypto.is_mz_magic_header first_bytes then Some Types.MZ
@@ -66,18 +67,19 @@ let decrypt_archive (key : bytes) (abs_path : string) :
       Error (Printf.sprintf "%s: not a ZIP / .pak archive" abs_path)
   | Error (Mz.BadHeader msg) ->
       Error (Printf.sprintf "%s: bad zip header — %s" abs_path msg)
-  | Error (Mz.IOFailure msg) -> Error (Printf.sprintf "%s: I/O — %s" abs_path msg)
-  | Ok z ->
+  | Error (Mz.IOFailure msg) ->
+      Error (Printf.sprintf "%s: I/O — %s" abs_path msg)
+  | Ok z -> (
       let r = Mz.decrypt_all key z in
       (try Zip.close_in z with _ -> ());
-      (match r with
-       | Error msg -> Error (Printf.sprintf "%s: %s" abs_path msg)
-       | Ok entries ->
-           Ok
-             (List.map
-                (fun (e : Mz.entry_result) ->
-                  (e.entry_name, e.bytes, e.plaintext_kind))
-                entries))
+      match r with
+      | Error msg -> Error (Printf.sprintf "%s: %s" abs_path msg)
+      | Ok entries ->
+          Ok
+            (List.map
+               (fun (e : Mz.entry_result) ->
+                 (e.entry_name, e.bytes, e.plaintext_kind))
+               entries))
 
 (** Convert a `.png_` style extension given the actual kind to a real ext. *)
 let choose_output_extension (input_ext : string) (kind : string) : string =

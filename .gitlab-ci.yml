@@ -68,10 +68,11 @@ ocaml-build-test-windows:
   before_script:
     - choco install opam --yes --no-progress
     - opam init --auto-setup --yes --disable-sandboxing
-    - opam install --yes dune zip yojson re
+    - opam install --yes dune camlzip yojson re ocamlformat
   script:
     - cd ocaml
     - opam exec -- dune build --profile release
+    - opam exec -- dune build @fmt   # format gate (ocamlformat 0.29.0)
     - opam exec -- dune exec --profile release test/test.exe
 
 # ---- OCaml port (ocaml/) — build + parity tests on a Linux OCaml toolchain --

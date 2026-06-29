@@ -29,14 +29,14 @@ let escape (s : string) : string =
 
 let iso_of_time (t : float) : string =
   let tm = Unix.gmtime t in
-  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ"
-    (tm.Unix.tm_year + 1900) (tm.Unix.tm_mon + 1) tm.Unix.tm_mday tm.Unix.tm_hour
-    tm.Unix.tm_min tm.Unix.tm_sec
+  Printf.sprintf "%04d-%02d-%02dT%02d:%02d:%02dZ" (tm.Unix.tm_year + 1900)
+    (tm.Unix.tm_mon + 1) tm.Unix.tm_mday tm.Unix.tm_hour tm.Unix.tm_min
+    tm.Unix.tm_sec
 
 let per_fmt_json (pf : (Types.format * int) list) : string =
   pf
   |> List.map (fun (k, v) ->
-         Printf.sprintf "\"%s\":%d" (Types.format_to_string k) v)
+      Printf.sprintf "\"%s\":%d" (Types.format_to_string k) v)
   |> String.concat ","
 
 let summary_to_json (s : Types.run_summary) : string =
@@ -45,7 +45,8 @@ let summary_to_json (s : Types.run_summary) : string =
     (escape (iso_of_time s.Types.started_at))
     (escape (iso_of_time s.Types.finished_at))
     s.Types.inputs_scanned s.Types.decrypted_count s.Types.passed_through_count
-    s.Types.skipped_count s.Types.failed_count (escape s.Types.key_source)
+    s.Types.skipped_count s.Types.failed_count
+    (escape s.Types.key_source)
     (per_fmt_json s.Types.per_format)
 
 let event_to_json (e : event) : string =
@@ -77,12 +78,18 @@ let human_summary (s : Types.run_summary) : string =
   let per_fmt_line =
     s.Types.per_format
     |> List.map (fun (k, v) ->
-           Printf.sprintf "%s=%d" (Types.format_to_string k) v)
+        Printf.sprintf "%s=%d" (Types.format_to_string k) v)
     |> String.concat " "
   in
   Printf.sprintf
-    "scanned: %d\ndecrypted: %d\npass-through: %d\nskipped: %d\nfailed: %d\nkey \
-     source: %s\nduration: %.2fs\nby format: %s"
+    "scanned: %d\n\
+     decrypted: %d\n\
+     pass-through: %d\n\
+     skipped: %d\n\
+     failed: %d\n\
+     key source: %s\n\
+     duration: %.2fs\n\
+     by format: %s"
     s.Types.inputs_scanned s.Types.decrypted_count s.Types.passed_through_count
     s.Types.skipped_count s.Types.failed_count s.Types.key_source dur
     per_fmt_line
