@@ -1,0 +1,170 @@
+---
+/**
+ * Home page.
+ *   • Hero with animated black-hole background.
+ *   • Catalog grid below.
+ */
+import Base from '../layouts/Base.astro';
+import BlackHole from '../components/BlackHole.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { products } from '../data/products.ts';
+
+const released = products.filter((p) => p.status === 'released');
+const comingSoon = products.filter((p) => p.status === 'coming-soon');
+const ordered = [...released, ...comingSoon];
+---
+<Base
+  title="rolanfreeman — building tools that respect your bytes"
+  description="A small catalog of products I ship — standalone binaries, libraries, and tools. Data-driven; every entry here is also a real, downloadable thing on GitHub."
+  pathname="/"
+>
+  <!-- ── hero ──────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <BlackHole />
+    <div class="hero__content container-full">
+      <span class="eyebrow" data-reveal>Catalog · 2026</span>
+      <h1 class="hero__title" data-reveal data-reveal-delay="80">
+        <span>tools that</span>
+        <span class="hero__title-accent">respect your bytes</span>
+      </h1>
+      <p class="hero__lead lead" data-reveal data-reveal-delay="160">
+        A small set of products I ship — standalone binaries and libraries, each one
+        built like a real piece of engineering. Drop a card into one to read the
+        story and grab the latest release.
+      </p>
+      <div class="hero__ctas" data-reveal data-reveal-delay="220">
+        <a class="btn btn-primary btn-lg" href="#catalog">
+          Browse the catalog
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+        <a class="btn btn-ghost btn-lg" href="https://github.com/rolanfreeman6-png" rel="noopener noreferrer" target="_blank">
+          GitHub
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </div>
+
+    <a class="hero__chevron" href="#catalog" aria-label="Scroll to catalog">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+  </section>
+
+  <!-- ── catalog ───────────────────────────────────────────────────────── -->
+  <section id="catalog" class="section catalog">
+    <div class="container">
+      <header class="catalog__head" data-reveal>
+        <span class="eyebrow">Catalog</span>
+        <h2 class="catalog__title">{released.length} shipped · {comingSoon.length} in the pipeline</h2>
+        <p class="catalog__sub lead">Each entry links to a full product page with the latest release, downloads for every OS, and links to source.</p>
+      </header>
+
+      <div class="catalog__grid">
+        {ordered.map((p, i) => (
+          <ProductCard product={p} revealDelay={80 + i * 60} />
+        ))}
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  /* Hero */
+  .hero {
+    position: relative;
+    height: 100vh;
+    min-height: 720px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .hero__content {
+    position: relative;
+    z-index: 3;
+    text-align: center;
+    margin-inline: auto;
+  }
+  .hero__title {
+    font-size: var(--text-5xl);
+    letter-spacing: var(--tracking-tighter);
+    line-height: 1.02;
+    font-weight: 700;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-block: var(--space-4) var(--space-5);
+    color: var(--text-strong);
+  }
+  .hero__title-accent {
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .hero__lead {
+    margin-inline: auto;
+    font-size: var(--text-md);
+    color: var(--muted);
+  }
+  .hero__ctas {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-7);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .hero__chevron {
+    position: absolute;
+    left: 50%;
+    bottom: var(--space-7);
+    transform: translateX(-50%);
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--void-elevated) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--void-edge) 50%, transparent);
+    transition: color var(--duration-fast) var(--ease-out),
+                border-color var(--duration-fast) var(--ease-out),
+                transform var(--duration-base) var(--ease-out);
+  }
+  .hero__chevron:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accretion-1) 50%, transparent);
+    transform: translateX(-50%) translateY(-2px);
+  }
+  @media (max-width: 720px) {
+    .hero__title { font-size: var(--text-3xl); }
+  }
+
+  /* Catalog */
+  .catalog__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-7);
+    max-width: 60ch;
+  }
+  .catalog__title {
+    font-size: var(--text-2xl);
+    letter-spacing: var(--tracking-tight);
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  .catalog__sub { color: var(--muted); }
+
+  .catalog__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-5);
+  }
+</style>

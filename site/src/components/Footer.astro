@@ -1,0 +1,52 @@
+---
+/**
+ * Footer — single row, restrained.
+ */
+const year = new Date().getFullYear();
+---
+<footer class="footer">
+  <div class="footer__inner container-full">
+    <p class="footer__brand">rolanfreeman</p>
+    <p class="footer__meta">
+      <span>© {year}</span>
+      <span aria-hidden="true">·</span>
+      <a href="https://github.com/rolanfreeman6-png" rel="noopener noreferrer" target="_blank">github</a>
+    </p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid color-mix(in srgb, var(--void-edge) 50%, transparent);
+    margin-top: var(--space-10);
+    padding-block: var(--space-7);
+    color: var(--muted);
+  }
+  .footer__inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    flex-wrap: wrap;
+  }
+  .footer__brand {
+    color: var(--text);
+    font-weight: 500;
+    letter-spacing: var(--tracking-tight);
+  }
+  .footer__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--text-sm);
+  }
+  .footer__meta a {
+    color: inherit;
+    border-bottom: 1px solid color-mix(in srgb, var(--lensing) 35%, transparent);
+    transition: border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+  }
+  .footer__meta a:hover {
+    color: var(--text);
+    border-color: var(--accretion-1);
+  }
+</style>

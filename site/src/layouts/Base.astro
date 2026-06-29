@@ -1,0 +1,76 @@
+---
+/**
+ * Base layout — html shell, head, global styles, nav, footer.
+ *
+ * Props:
+ *   title       — document title (tagged on to the site name).
+ *   description — meta description / og description.
+ *   ogImage     — absolute or root-relative image path. Defaults to /og-default.svg.
+ *   pathname    — current path, used by Nav to highlight the active link.
+ *   noindex     — when true, add <meta name="robots" content="noindex"> (default false).
+ */
+import '@fontsource-variable/inter/index.css';
+import '@fontsource-variable/jetbrains-mono/index.css';
+import '../styles/tokens.css';
+import '../styles/base.css';
+import '../styles/components.css';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  ogImage?: string;
+  pathname?: string;
+  noindex?: boolean;
+}
+const {
+  title,
+  description,
+  ogImage = '/og-default.svg',
+  pathname,
+  noindex = false,
+} = Astro.props;
+
+const fullTitle = title.includes('rolanfreeman') ? title : `${title} · rolanfreeman`;
+const canonical = new URL(pathname ?? Astro.url.pathname, Astro.site ?? 'https://rolanfreeman.com').toString();
+---
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#05060a" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex" />}
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(ogImage, Astro.site ?? 'https://rolanfreeman.com').toString()} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(ogImage, Astro.site ?? 'https://rolanfreeman.com').toString()} />
+
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body>
+    <!-- client-side only — bundled by Astro, never runs at SSR -->
+    <script>import '../scripts/scroll-reveal.ts';</script>
+
+    <a href="#main" class="sr-only">Skip to main content</a>
+    <Nav pathname={pathname ?? Astro.url.pathname} />
+    <main id="main">
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

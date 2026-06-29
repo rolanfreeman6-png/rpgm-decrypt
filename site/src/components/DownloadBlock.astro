@@ -1,0 +1,337 @@
+---
+/**
+ * DownloadBlock — OS detection + GitHub release asset matching + buttons.
+ *
+ * Server-side role:
+ *   • If product.status === 'coming-soon' → render the "Coming soon" panel
+ *     and stop. No fetcher.
+ *   • Otherwise render three buttons (Windows / Linux / macOS) initially with
+ *     aria-disabled, plus a metadata line ("Checking latest release…"),
+ *     and a "View on GitHub" fallback link. The client JS hydrates the URLs.
+ *
+ * Client-side role (data-download-block on the host element):
+ *   • Read data-repo ("owner/name"); bail if absent.
+ *   • Cache latest release JSON in localStorage under
+ *     `release:<owner>/<name>` for 1 hour (respects 60-req/hour unauth'd limit).
+ *   • Fetch https://api.github.com/repos/<owner>/<repo>/releases/latest
+ *     and map assets to OS:
+ *         windows:  filename matches /win|windows|\.exe/i
+ *         linux:    filename matches /linux/i
+ *         macos:    filename matches /osx|macos|darwin/i
+ *   • On 4xx/5xx/rate-limit → fall back to /<owner>/<repo>/releases/latest
+ *     for every OS button, leaving the data as "Latest release" generic.
+ *   • On 404 (no releases yet) → leave buttons aria-disabled with label
+ *     "No release yet" and surface the releases-page link.
+ *
+ * OS-button highlight:
+ *   • detectOS() reads navigator.userAgent / platform / userAgentData.
+ */
+import type { Product } from '../data/products.ts';
+
+interface Props {
+  product: Product;
+}
+const { product } = Astro.props;
+
+const isComing = product.status === 'coming-soon';
+const releasesUrl = product.repo
+  ? `https://github.com/${product.repo}/releases/latest`
+  : (product.links?.github ?? '#');
+
+const osList: Array<{ id: 'windows' | 'linux' | 'macos'; label: string }> = [
+  { id: 'windows', label: 'Windows' },
+  { id: 'linux',   label: 'Linux'   },
+  { id: 'macos',   label: 'macOS'   },
+];
+---
+{isComing ? (
+  <section class="download download--coming" data-reveal>
+    <div class="download__card hairline">
+      <span class="eyebrow">Download</span>
+      <h2 class="download__title">Coming soon</h2>
+      <p class="download__sub">This product has not shipped yet. Watch the project for the announcement.</p>
+      {product.repo && (
+        <a class="btn btn-ghost" href={releasesUrl} target="_blank" rel="noopener noreferrer">
+          Watch on GitHub
+          <span aria-hidden="true">↗</span>
+        </a>
+      )}
+    </div>
+  </section>
+) : (
+  <section
+    class="download"
+    data-download-block
+    data-repo={product.repo ?? ''}
+    data-fallback={releasesUrl}
+    data-reveal
+  >
+    <div class="download__card hairline">
+      <span class="eyebrow">Download</span>
+      <h2 class="download__title">Get the latest release</h2>
+
+      <p class="download__sub">
+        <span data-version>Latest release</span>
+        <span aria-hidden="true"> · </span>
+        <span data-published>—</span>
+        <span aria-hidden="true"> · </span>
+        <span data-status>Checking…</span>
+      </p>
+
+      <div class="download__grid">
+        {osList.map(({ id, label }) => (
+          <a
+            class="btn btn-lg download__btn"
+            data-os={id}
+            data-os-label={label}
+            aria-disabled="true"
+            href={releasesUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            <span class="download__btn-os">{label}</span>
+            <span class="download__btn-meta" data-asset-name>—</span>
+          </a>
+        ))}
+      </div>
+
+      <p class="download__fallback">
+        Auto-detect picked <strong data-os-current>your OS</strong>.
+        Wrong one? Pick above, or
+        <a href={releasesUrl} target="_blank" rel="noopener noreferrer">view all releases on GitHub</a>.
+      </p>
+    </div>
+  </section>
+)}
+
+<style>
+  .download {
+    margin-block: var(--space-7);
+  }
+  .download__card {
+    padding: var(--space-7);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    background: color-mix(in srgb, var(--void-elevated) 80%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .download__title {
+    font-size: var(--text-2xl);
+    letter-spacing: var(--tracking-tight);
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+  .download__sub {
+    color: var(--muted);
+    font-size: var(--text-sm);
+    letter-spacing: 0.01em;
+  }
+  .download__sub [data-status] { color: var(--muted-2); }
+
+  .download__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+  @media (max-width: 720px) {
+    .download__grid { grid-template-columns: 1fr; }
+  }
+
+  .download__btn {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: var(--space-4) var(--space-5);
+  }
+  .download__btn[aria-disabled='true'] {
+    opacity: 0.55;
+    cursor: progress;
+  }
+  .download__btn[data-current='true'] {
+    border-color: color-mix(in srgb, var(--accretion-1) 50%, transparent);
+    box-shadow: var(--glow-accent);
+  }
+  .download__btn-os {
+    font-weight: 600;
+    color: var(--text-strong);
+    letter-spacing: -0.005em;
+    font-size: var(--text-md);
+  }
+  .download__btn-meta {
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+  }
+
+  .download__fallback {
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--muted);
+  }
+  .download__fallback a {
+    border-bottom: 1px solid color-mix(in srgb, var(--lensing) 50%, transparent);
+    transition: border-color var(--duration-fast) var(--ease-out);
+  }
+  .download__fallback a:hover {
+    border-color: var(--accretion-1);
+  }
+
+  .download--coming .download__card { align-items: flex-start; }
+</style>
+
+<script>
+  /* ── Release fetcher & OS detection ───────────────────────────────────── */
+  type Release = {
+    tag_name: string;
+    published_at: string;
+    html_url: string;
+    assets: Array<{ name: string; browser_download_url: string }>;
+  };
+  type OS = 'windows' | 'linux' | 'macos' | 'other';
+
+  const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+  const CACHE_PREFIX = 'release:';
+
+  function detectOS(): OS {
+    const ua = (navigator.userAgent || '').toLowerCase();
+    // navigator.userAgentData is the modern replacement for navigator.platform.
+    const uad = (navigator as Navigator & { userAgentData?: { platform: string } }).userAgentData;
+    const platform = (uad?.platform ?? '').toLowerCase();
+    if (/windows|win32|win64/.test(ua) || platform.includes('win')) return 'windows';
+    if (/mac|osx|darwin/.test(ua) || platform.includes('mac')) return 'macos';
+    if (/linux|x11|cros/.test(ua) || platform.includes('linux')) return 'linux';
+    return 'other';
+  }
+
+  function matchOS(filename: string): OS | null {
+    const f = filename.toLowerCase();
+    if (/(win|windows|\.exe)/.test(f)) return 'windows';
+    if (/(linux|\.deb|\.rpm|\.AppImage)/.test(f)) return 'linux';
+    if (/(osx|macos|darwin|\.dmg|\.pkg)/.test(f)) return 'macos';
+    return null;
+  }
+
+  function cacheKey(repo: string): string {
+    return CACHE_PREFIX + repo;
+  }
+
+  function readCache(repo: string): Release | null {
+    try {
+      const raw = localStorage.getItem(cacheKey(repo));
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { ts: number; data: Release };
+      if (typeof parsed.ts !== 'number' || Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+      return parsed.data;
+    } catch { return null; }
+  }
+
+  function writeCache(repo: string, data: Release): void {
+    try {
+      localStorage.setItem(cacheKey(repo), JSON.stringify({ ts: Date.now(), data }));
+    } catch { /* storage quota or disabled — ignore */ }
+  }
+
+  async function fetchLatest(repo: string, signal: AbortSignal): Promise<Release | null> {
+    const url = `https://api.github.com/repos/${encodeURI(repo)}/releases/latest`;
+    const res = await fetch(url, {
+      headers: { Accept: 'application/vnd.github+json' },
+      signal,
+    });
+    if (res.status === 404) return null;            // no releases yet
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    return (await res.json()) as Release;
+  }
+
+  function formatDate(iso: string): string {
+    try {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return iso; }
+  }
+
+  function applyAssets(block: HTMLElement, release: Release | null, fallback: string): void {
+    const btns = block.querySelectorAll<HTMLAnchorElement>('.download__btn');
+    const verEl = block.querySelector<HTMLElement>('[data-version]');
+    const pubEl = block.querySelector<HTMLElement>('[data-published]');
+    const statEl = block.querySelector<HTMLElement>('[data-status]');
+
+    // group by OS, preferring earlier assets in the array
+    const byOS = new Map<OS, { name: string; url: string }>();
+    if (release) {
+      for (const a of release.assets) {
+        const os = matchOS(a.name);
+        if (os && !byOS.has(os)) byOS.set(os, { name: a.name, url: a.browser_download_url });
+      }
+      if (verEl) verEl.textContent = release.tag_name;
+      if (pubEl) pubEl.textContent = formatDate(release.published_at);
+      if (statEl) statEl.textContent = 'Latest';
+    } else if (verEl) {
+      verEl.textContent = 'Latest release';
+      if (pubEl) pubEl.textContent = '—';
+      if (statEl) statEl.textContent = 'No release yet';
+    }
+
+    btns.forEach((btn) => {
+      const id = (btn.dataset.os as OS) ?? 'other';
+      const direct = byOS.get(id);
+      btn.setAttribute('aria-disabled', direct ? 'false' : 'true');
+      if (direct) {
+        btn.href = direct.url;
+        const meta = btn.querySelector<HTMLElement>('[data-asset-name]');
+        if (meta) meta.textContent = direct.name;
+      } else {
+        btn.href = fallback;
+        const meta = btn.querySelector<HTMLElement>('[data-asset-name]');
+        if (meta) meta.textContent = 'View on GitHub →';
+      }
+    });
+  }
+
+  function highlightCurrentOS(block: HTMLElement, current: OS): void {
+    if (current === 'other') {
+      const el = block.querySelector<HTMLElement>('[data-os-current]');
+      if (el) el.textContent = 'your OS';
+      return;
+    }
+    block.querySelectorAll<HTMLAnchorElement>('.download__btn').forEach((btn) => {
+      if ((btn.dataset.os as OS) === current) btn.dataset.current = 'true';
+      else delete btn.dataset.current;
+    });
+    const el = block.querySelector<HTMLElement>('[data-os-current]');
+    if (el) el.textContent = current === 'macos' ? 'macOS' : current[0].toUpperCase() + current.slice(1);
+  }
+
+  // wire up
+  const blocks = document.querySelectorAll<HTMLElement>('[data-download-block]');
+  for (const block of blocks) {
+    const repo = block.dataset.repo ?? '';
+    const fallback = block.dataset.fallback ?? '#';
+    if (!repo) continue;
+
+    highlightCurrentOS(block, detectOS());
+
+    const ctrl = new AbortController();
+    // 8s safety timeout — never block the page forever
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+
+    const cached = readCache(repo);
+    if (cached) applyAssets(block, cached, fallback);
+
+    (async () => {
+      try {
+        const release = await fetchLatest(repo, ctrl.signal);
+        if (release) writeCache(repo, release);
+        applyAssets(block, release, fallback);
+      } catch {
+        // network error / rate-limited — keep whatever cache gave us, else fall back
+        if (!cached) applyAssets(block, null, fallback);
+        const stat = block.querySelector<HTMLElement>('[data-status]');
+        if (stat) stat.textContent = cached ? 'Latest (cached)' : 'View releases';
+      } finally {
+        clearTimeout(timer);
+      }
+    })();
+  }
+</script>
