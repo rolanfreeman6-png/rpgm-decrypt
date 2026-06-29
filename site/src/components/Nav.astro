@@ -1,7 +1,8 @@
 ---
 /**
- * Site navigation. Sticky on scroll with backdrop-blur.
- * One row of links; no mega-menu. Brand mark "rolanfreeman" on the left.
+ * Site navigation — editorial, single-row, slim.
+ * Sits below the preloader bar (which is in Base.astro).
+ * Brand mark + word-label on the left; right side has Products / GitHub.
  */
 interface Props {
   pathname?: string;
@@ -16,14 +17,14 @@ const isHome = pathname.replace(/\/$/, '') === '';
         <svg viewBox="0 0 24 24" width="22" height="22">
           <defs>
             <linearGradient id="markGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#ff8a3d"/>
-              <stop offset="100%" stop-color="#8a5cff"/>
+              <stop offset="0%" stop-color="#d9b774"/>
+              <stop offset="100%" stop-color="#b87a3f"/>
             </linearGradient>
           </defs>
-          <circle cx="12" cy="12" r="9" fill="none" stroke="url(#markGrad)" stroke-width="1.4" opacity="0.7"/>
+          <circle cx="12" cy="12" r="9" fill="none" stroke="url(#markGrad)" stroke-width="1.4" opacity="0.6"/>
           <circle cx="12" cy="12" r="5" fill="none" stroke="url(#markGrad)" stroke-width="1.4"/>
           <circle cx="12" cy="12" r="2.4" fill="url(#markGrad)"/>
-          <circle cx="12" cy="12" r="1.6" fill="#000"/>
+          <circle cx="12" cy="12" r="1.6" fill="#0c0b09"/>
         </svg>
       </span>
       <span class="nav__brand-name">rolanfreeman</span>
@@ -31,18 +32,20 @@ const isHome = pathname.replace(/\/$/, '') === '';
 
     <ul class="nav__links" role="list">
       <li>
-        <a href="/" aria-current={isHome ? 'page' : undefined} class:list={[ 'nav__link', { 'is-active': isHome } ]}>
-          Products
+        <a class:list={[ 'nav__link', { 'is-active': isHome } ]} href="/">
+          <span class="nav__idx">01</span>
+          <span>Works</span>
         </a>
       </li>
       <li>
         <a
+          class="nav__link nav__link--external"
           href="https://github.com/rolanfreeman6-png"
           rel="noopener noreferrer"
           target="_blank"
-          class="nav__link nav__link--external"
         >
-          GitHub
+          <span class="nav__idx">02</span>
+          <span>GitHub</span>
           <span aria-hidden="true" class="nav__ext">↗</span>
         </a>
       </li>
@@ -55,12 +58,10 @@ const isHome = pathname.replace(/\/$/, '') === '';
     position: sticky;
     top: 0;
     z-index: var(--z-nav);
-    background: color-mix(in srgb, var(--void) 60%, transparent);
+    background: color-mix(in srgb, var(--ink) 78%, transparent);
     backdrop-filter: blur(14px) saturate(140%);
     -webkit-backdrop-filter: blur(14px) saturate(140%);
-    border-bottom: 1px solid color-mix(in srgb, var(--void-edge) 40%, transparent);
-    transition: background var(--duration-base) var(--ease-out),
-                border-color var(--duration-base) var(--ease-out);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink-edge) 80%, transparent);
   }
   .nav__inner {
     display: flex;
@@ -84,8 +85,6 @@ const isHome = pathname.replace(/\/$/, '') === '';
     justify-content: center;
     width: 28px;
     height: 28px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--violet) 30%, transparent), transparent 70%);
   }
   .nav__brand-name { line-height: 1; }
 
@@ -100,24 +99,28 @@ const isHome = pathname.replace(/\/$/, '') === '';
   .nav__link {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-3);
     padding: 8px 14px;
-    border-radius: var(--radius-pill);
     font-size: var(--text-base);
-    color: var(--muted);
-    transition:
-      color var(--duration-fast) var(--ease-out),
-      background var(--duration-fast) var(--ease-out);
+    font-family: var(--font-display);
+    color: var(--paper-muted);
+    transition: color var(--duration-fast) var(--ease-out);
   }
-  .nav__link:hover { color: var(--text); }
-  .nav__link.is-active {
-    color: var(--text-strong);
-    background: color-mix(in srgb, var(--void-elevated) 70%, transparent);
+  .nav__link:hover { color: var(--text-strong); }
+  .nav__link.is-active { color: var(--text-strong); }
+  .nav__idx {
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    color: var(--paper-soft);
+    letter-spacing: var(--tracking-wide);
   }
+  .nav__link.is-active .nav__idx,
+  .nav__link:hover .nav__idx { color: var(--gold); }
   .nav__ext { font-size: 0.85em; opacity: 0.7; }
 
   @media (max-width: 540px) {
     .nav__inner { height: 56px; }
-    .nav__brand-name { display: none; } /* keep logo only on tiny screens */
+    .nav__brand-name { display: none; }
+    .nav__link span:not(.nav__idx) { display: none; }
   }
 </style>

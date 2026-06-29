@@ -1,170 +1,315 @@
 ---
 /**
- * Home page.
- *   • Hero with animated black-hole background.
- *   • Catalog grid below.
+ * Home page — editorial scroll narrative. Three sections:
+ *   01 / WORKS   — hero with stat-line, huge display title, lead, cue.
+ *   02 / CATALOG — grid of products. Each card restyled editorial.
+ *   03 / STUDIO  — about / mission block with continuous narrative copy.
+ *
+ * The BlackHole canvas is dropped per the redesign — replaced by
+ * scroll-driven type (split-text word reveal + soft parallax).
  */
 import Base from '../layouts/Base.astro';
-import BlackHole from '../components/BlackHole.astro';
 import ProductCard from '../components/ProductCard.astro';
+import Roadmap from '../components/Roadmap.astro';
 import { products } from '../data/products.ts';
 
-const released = products.filter((p) => p.status === 'released');
-const comingSoon = products.filter((p) => p.status === 'coming-soon');
-const ordered = [...released, ...comingSoon];
+const released     = products.filter((p) => p.status === 'released');
+const comingSoon   = products.filter((p) => p.status === 'coming-soon');
+const ordered      = [...released, ...comingSoon];
+const totalShipped = released.length;
+const totalIncoming = comingSoon.length;
 ---
 <Base
   title="rolanfreeman — building tools that respect your bytes"
-  description="A small catalog of products I ship — standalone binaries, libraries, and tools. Data-driven; every entry here is also a real, downloadable thing on GitHub."
+  description="A small catalog of products I ship — standalone binaries and libraries. Data-driven; every entry here is also a real, downloadable thing on GitHub."
   pathname="/"
 >
-  <!-- ── hero ──────────────────────────────────────────────────────────── -->
-  <section class="hero">
-    <BlackHole />
-    <div class="hero__content container-full">
-      <span class="eyebrow" data-reveal>Catalog · 2026</span>
-      <h1 class="hero__title" data-reveal data-reveal-delay="80">
-        <span>tools that</span>
-        <span class="hero__title-accent">respect your bytes</span>
-      </h1>
-      <p class="hero__lead lead" data-reveal data-reveal-delay="160">
-        A small set of products I ship — standalone binaries and libraries, each one
-        built like a real piece of engineering. Drop a card into one to read the
-        story and grab the latest release.
-      </p>
-      <div class="hero__ctas" data-reveal data-reveal-delay="220">
-        <a class="btn btn-primary btn-lg" href="#catalog">
-          Browse the catalog
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </a>
-        <a class="btn btn-ghost btn-lg" href="https://github.com/rolanfreeman6-png" rel="noopener noreferrer" target="_blank">
-          GitHub
-          <span aria-hidden="true">↗</span>
-        </a>
-      </div>
-    </div>
+  <!-- ── 01 / WORKS ─────────────────────────────────────────────────────── -->
+  <section class="hero section section-lg" id="works">
+    <aside class="hero__marker section-marker section-marker--big" aria-hidden="true">
+      Works
+    </aside>
 
-    <a class="hero__chevron" href="#catalog" aria-label="Scroll to catalog">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </a>
+    <div class="hero__inner container-full">
+      <div class="hero__head">
+        <span class="hero__counter counter">01 / Works</span>
+        <div class="stats" data-reveal>
+          <div class="stat-line">
+            <span class="stat-line__num stat-line__num--accent" data-counter={totalShipped}>00</span>
+            <span class="stat-line__label">Shipped</span>
+            <span class="stat-line__num" data-counter={totalIncoming}>00</span>
+            <span class="stat-line__label">In the pipeline</span>
+          </div>
+        </div>
+      </div>
+
+      <h1 class="hero__title display-1 split-text" data-split-text aria-label="Tools that respect your bytes.">
+        <span class="word"><span>Tools</span></span>
+        <span class="word"><span>that</span></span>
+        <span class="word"><span>respect</span></span>
+        <span class="word"><span>your</span></span>
+        <span class="word"><span>bytes.</span></span>
+      </h1>
+
+      <div class="hero__foot">
+        <p class="hero__lead lead" data-reveal>
+          A small set of products I ship — standalone binaries and libraries,
+          each one built like a piece of engineering. Click any card to read
+          the story and grab the latest release.
+        </p>
+        <div class="hero__ctas" data-reveal>
+          <a class="btn btn-primary btn-arrow btn-lg" href="#catalog">
+            See the catalog
+          </a>
+          <a class="btn btn-ghost btn-arrow" href="https://github.com/rolanfreeman6-png" target="_blank" rel="noopener noreferrer">
+            GitHub
+          </a>
+        </div>
+      </div>
+
+      <a class="hero__cue" href="#catalog" aria-label="Scroll to catalog">
+        <span class="hero__cue-line" aria-hidden="true"></span>
+        <span class="hero__cue-label">scroll</span>
+      </a>
+    </div>
   </section>
 
-  <!-- ── catalog ───────────────────────────────────────────────────────── -->
-  <section id="catalog" class="section catalog">
-    <div class="container">
-      <header class="catalog__head" data-reveal>
-        <span class="eyebrow">Catalog</span>
-        <h2 class="catalog__title">{released.length} shipped · {comingSoon.length} in the pipeline</h2>
-        <p class="catalog__sub lead">Each entry links to a full product page with the latest release, downloads for every OS, and links to source.</p>
+  <!-- ── 02 / CATALOG ───────────────────────────────────────────────────── -->
+  <section class="catalog section section-lg" id="catalog">
+    <div class="catalog__inner container-full">
+      <header class="catalog__head">
+        <aside class="catalog__marker section-marker section-marker--big" aria-hidden="true">
+          Catalog
+        </aside>
+        <span class="catalog__counter counter">02 / Catalog</span>
       </header>
 
       <div class="catalog__grid">
         {ordered.map((p, i) => (
-          <ProductCard product={p} revealDelay={80 + i * 60} />
+          <ProductCard product={p} revealDelay={80 + i * 70} index={i + 1} />
         ))}
       </div>
     </div>
   </section>
+
+  <!-- ── 03 / STUDIO ─────────────────────────────────────────────────────── -->
+  <section class="studio section section-lg">
+    <div class="studio__inner container-full">
+      <header class="studio__head">
+        <aside class="studio__marker section-marker section-marker--big" aria-hidden="true">
+          Studio
+        </aside>
+        <span class="studio__counter counter">03 / Studio</span>
+      </header>
+
+      <h2 class="studio__title display-2 split-text" data-split-text aria-label="A solo practice, run with discipline.">
+        <span class="word"><span>A</span></span>
+        <span class="word"><span>solo</span></span>
+        <span class="word"><span>practice,</span></span>
+        <span class="word"><span>run</span></span>
+        <span class="word"><span>with</span></span>
+        <span class="word"><span>discipline.</span></span>
+      </h2>
+
+      <div class="studio__body">
+        <p class="lead" data-reveal>
+          I ship small, sharp products and document them like real engineering work —
+          not marketing pages. Every release is reproducible, every claim on a
+          page is backed by a test, a run, or an honest accounting of what hasn't been.
+        </p>
+        <p class="lead" data-reveal data-reveal-delay="80">
+          If you're after an introduction, the latest project is always the front
+          of the catalog. The rest is in the index of finished work.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 04 / ROADMAP ──────────────────────────────────────────────────── -->
+  <Roadmap />
 </Base>
 
 <style>
-  /* Hero */
+  /* ── 01 / HERO ─────────────────────────────────────────────────────────── */
   .hero {
     position: relative;
-    height: 100vh;
-    min-height: 720px;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    isolation: isolate;
+    min-height: 90vh;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-7);
+    align-items: stretch;
   }
-  .hero__content {
-    position: relative;
-    z-index: 3;
-    text-align: center;
-    margin-inline: auto;
+  .hero__marker {
+    grid-column: 1;
+    align-self: start;
+    padding-top: clamp(2rem, 6vh, 5rem);
+    padding-left: clamp(1rem, 2vw, 2rem);
+  }
+  .hero__inner {
+    grid-column: 2;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: var(--space-9);
+    padding-block: clamp(3rem, 8vh, 7rem);
+  }
+  .hero__head {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+  }
+  .hero__counter { display: inline-block; }
+  .stats .stat-line {
+    grid-template-columns: max-content max-content max-content max-content;
+    column-gap: var(--space-9);
   }
   .hero__title {
-    font-size: var(--text-5xl);
-    letter-spacing: var(--tracking-tighter);
-    line-height: 1.02;
-    font-weight: 700;
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    margin-block: var(--space-4) var(--space-5);
-    color: var(--text-strong);
+    max-width: 14ch;
+    margin-block: var(--space-6) var(--space-7);
   }
-  .hero__title-accent {
-    background: var(--gradient-accent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .hero__foot {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: var(--space-7);
+    align-items: end;
   }
-  .hero__lead {
-    margin-inline: auto;
-    font-size: var(--text-md);
-    color: var(--muted);
-  }
+  .hero__lead { max-width: 52ch; }
   .hero__ctas {
     display: inline-flex;
-    align-items: center;
     gap: var(--space-3);
-    margin-top: var(--space-7);
+    justify-self: end;
     flex-wrap: wrap;
-    justify-content: center;
   }
-  .hero__chevron {
+  .hero__cue {
     position: absolute;
-    left: 50%;
     bottom: var(--space-7);
+    left: 50%;
     transform: translateX(-50%);
-    z-index: 3;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    color: var(--muted);
-    background: color-mix(in srgb, var(--void-elevated) 60%, transparent);
-    border: 1px solid color-mix(in srgb, var(--void-edge) 50%, transparent);
-    transition: color var(--duration-fast) var(--ease-out),
-                border-color var(--duration-fast) var(--ease-out),
-                transform var(--duration-base) var(--ease-out);
+    gap: var(--space-3);
+    color: var(--paper-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-marker);
   }
-  .hero__chevron:hover {
-    color: var(--text);
-    border-color: color-mix(in srgb, var(--accretion-1) 50%, transparent);
-    transform: translateX(-50%) translateY(-2px);
-  }
-  @media (max-width: 720px) {
-    .hero__title { font-size: var(--text-3xl); }
+  .hero__cue-line {
+    width: 28px;
+    height: 1px;
+    background: var(--paper-muted);
   }
 
-  /* Catalog */
-  .catalog__head {
+  @media (max-width: 920px) {
+    .hero { grid-template-columns: 1fr; }
+    .hero__marker { display: none; }
+    .hero__foot { grid-template-columns: 1fr; align-items: start; }
+    .hero__ctas { justify-self: start; }
+  }
+
+  /* ── 02 / CATALOG ──────────────────────────────────────────────────────── */
+  .catalog {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-7);
+    align-items: start;
+  }
+  .catalog__marker {
+    grid-column: 1;
+    padding-top: var(--space-3);
+    padding-left: clamp(1rem, 2vw, 2rem);
+  }
+  .catalog__inner {
+    grid-column: 2;
     display: flex;
     flex-direction: column;
-    gap: var(--space-3);
-    margin-bottom: var(--space-7);
-    max-width: 60ch;
+    gap: var(--space-9);
   }
-  .catalog__title {
-    font-size: var(--text-2xl);
-    letter-spacing: var(--tracking-tight);
-    font-weight: 600;
-    color: var(--text-strong);
+  .catalog__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-5);
+    flex-wrap: wrap;
   }
-  .catalog__sub { color: var(--muted); }
-
   .catalog__grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: var(--space-5) var(--space-5);
+    border-top: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+    padding-top: var(--space-7);
+  }
+  @media (max-width: 920px) {
+    .catalog { grid-template-columns: 1fr; }
+    .catalog__marker { display: none; }
+  }
+
+  /* ── 03 / STUDIO ───────────────────────────────────────────────────────── */
+  .studio {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--space-7);
+    align-items: start;
+  }
+  .studio__marker {
+    grid-column: 1;
+    padding-top: var(--space-3);
+    padding-left: clamp(1rem, 2vw, 2rem);
+  }
+  .studio__inner {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+    max-width: min(1180px, 100%);
+  }
+  .studio__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .studio__title { max-width: 18ch; }
+  .studio__body {
+    display: flex;
+    flex-direction: column;
     gap: var(--space-5);
+    border-top: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+    padding-top: var(--space-7);
+    max-width: 70ch;
+  }
+  @media (max-width: 920px) {
+    .studio { grid-template-columns: 1fr; }
+    .studio__marker { display: none; }
   }
 </style>
+
+<script>
+  /* ── Counter animation: tick any [data-counter] from 0 → n on reveal ── */
+  const counters = document.querySelectorAll<HTMLElement>('[data-counter]');
+  if (counters.length > 0) {
+    const tick = (el: HTMLElement, target: number): void => {
+      const start = performance.now();
+      const dur = 1100;
+      const step = (now: number): void => {
+        const t = Math.min(1, (now - start) / dur);
+        // easeOutCubic
+        const eased = 1 - Math.pow(1 - t, 3);
+        const value = Math.max(0, Math.round(target * eased));
+        el.textContent = value < 10 ? `0${value}` : String(value);
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    };
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        const el = e.target as HTMLElement;
+        const target = Number(el.dataset.counter ?? '0');
+        tick(el, target);
+        io.unobserve(el);
+      }
+    }, { threshold: 0.4 });
+    counters.forEach((el) => io.observe(el));
+  }
+</script>

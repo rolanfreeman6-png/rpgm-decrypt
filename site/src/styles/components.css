@@ -1,6 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────────────
- * Component-level utilities. Mostly thin wrappers + layout primitives used by
- * several components. Heavy lifting lives next to the component that owns it.
+ * Component-level utilities + editorial layout primitives.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 /* ── containers ────────────────────────────────────────────────────────────── */
@@ -10,14 +9,12 @@
   padding-inline: var(--space-5);
   max-width: var(--container-wide);
 }
-
 .container-narrow {
   width: 100%;
   margin-inline: auto;
   padding-inline: var(--space-5);
   max-width: var(--container-narrow);
 }
-
 .container-full {
   width: 100%;
   margin-inline: auto;
@@ -27,96 +24,213 @@
 
 /* ── sections ──────────────────────────────────────────────────────────────── */
 .section {
-  padding-block: var(--space-9);
+  padding-block: var(--space-section);
   position: relative;
 }
-
 .section-lg {
-  padding-block: var(--space-11);
+  padding-block: var(--space-section-lg);
+}
+.section-divider {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ink-edge) 80%, transparent);
+  margin-block: var(--space-section);
+}
+
+/* ── editorial section marker (vertical word in the corner) ────────────────
+ * Each major section can wear this; it's absolutely positioned to the side
+ * of the section's content and pinned (sticky) while the user scrolls it. */
+.section-marker {
+  position: relative;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-marker);
+  text-transform: uppercase;
+  color: var(--paper-muted);
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  padding-block: var(--space-3);
+  user-select: none;
+}
+.section-marker--big {
+  font-family: var(--font-display);
+  font-size: var(--text-marker);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--paper);
+  writing-mode: vertical-rl;
+}
+
+/* counterpair — e.g. "01 / 04" or "01" alone */
+.counter {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--paper-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.counter::before {
+  content: '';
+  display: inline-block;
+  width: 28px;
+  height: 1px;
+  background: color-mix(in srgb, var(--gold) 60%, transparent);
 }
 
 /* ── eyebrow / overline ────────────────────────────────────────────────────── */
 .eyebrow {
   display: inline-block;
+  font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
-  letter-spacing: var(--tracking-wide);
+  letter-spacing: var(--tracking-marker);
   text-transform: uppercase;
-  color: var(--muted);
-  padding-block: var(--space-2);
-  position: relative;
+  color: var(--paper-muted);
 }
 
-.eyebrow::before {
-  content: '';
-  display: inline-block;
-  width: 24px;
-  height: 1px;
-  vertical-align: middle;
-  margin-right: var(--space-3);
+/* ── HUGE display title (Hubtown-style: huge, line-stacked, tight) ───────── */
+.display-1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-5xl);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tightest);
+  color: var(--text-strong);
+}
+.display-2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-4xl);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-tighter);
+  color: var(--text-strong);
+}
+.display-accent {
   background: var(--gradient-accent);
-  opacity: 0.7;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-/* ── button ────────────────────────────────────────────────────────────────── */
+/* ── split-text (per-word stagger reveal) ────────────────────────────────────
+ * Markup: <h1 class="display-1 split-text">Tools that respect bytes</h1>
+ * JS converts each word into a span.wrap-word so each can fade up in stagger. */
+.split-text .word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  line-height: inherit;
+}
+.split-text .word > span {
+  display: inline-block;
+  transform: translateY(110%);
+  opacity: 0;
+  transition:
+    transform var(--duration-stage) var(--ease-out),
+    opacity var(--duration-stage) var(--ease-out);
+  transition-delay: var(--word-delay, 0ms);
+}
+.split-text.is-revealed .word > span {
+  transform: translateY(0);
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .split-text .word > span {
+    transform: none;
+    opacity: 1;
+    transition: none;
+  }
+}
+
+/* ── stat-line (Hubtown "09 PROJECTS / Central Suburbs" cluster) ─────────── */
+.stat-line {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 0 var(--space-7);
+  align-items: baseline;
+  font-family: var(--font-mono);
+  color: var(--paper);
+  font-feature-settings: 'tnum';
+}
+.stat-line__num {
+  font-family: var(--font-display);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  letter-spacing: var(--tracking-tightest);
+  color: var(--text-strong);
+}
+.stat-line__num--accent {
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.stat-line__label {
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--paper-muted);
+  grid-column: 2;
+}
+.stat-line__spacer { display: block; }
+
+/* ── button (editorial: sharp corners, hairline border, gradient on primary) */
 .btn {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
+  font-family: var(--font-display);
   font-size: var(--text-base);
   font-weight: 500;
   letter-spacing: -0.005em;
-  color: var(--text);
-  background: color-mix(in srgb, var(--void-elevated) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--void-edge) 80%, transparent);
-  border-radius: var(--radius-md);
+  color: var(--paper);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+  border-radius: 0;
   transition:
     transform var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out),
-    background var(--duration-fast) var(--ease-out);
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
   position: relative;
   isolation: isolate;
 }
-
 .btn:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--lensing) 40%, transparent);
-  background: color-mix(in srgb, var(--void-elevated) 95%, transparent);
-}
-
-.btn-primary {
+  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
   color: var(--text-strong);
+}
+.btn-primary {
+  color: var(--ink);
   background: var(--gradient-accent);
   border-color: transparent;
-  box-shadow: var(--glow-accent);
+  padding-inline: var(--space-6);
 }
-
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--accretion-1) 60%, transparent),
-    0 18px 50px -10px color-mix(in srgb, var(--violet) 55%, transparent);
+  color: var(--ink);
+  box-shadow: var(--glow-accent);
 }
-
 .btn-ghost {
   background: transparent;
-  border-color: color-mix(in srgb, var(--void-edge) 60%, transparent);
+  border-color: color-mix(in srgb, var(--ink-edge) 100%, transparent);
 }
-
+.btn-arrow::after {
+  content: '→';
+  display: inline-block;
+  transition: transform var(--duration-fast) var(--ease-out);
+  margin-left: var(--space-2);
+}
+.btn:hover .btn-arrow::after,
+.btn-arrow:hover::after { transform: translateX(4px); }
 .btn-lg {
   padding: var(--space-4) var(--space-6);
   font-size: var(--text-md);
-}
-
-/* ── hairline border via gradient (subtle premium signature) ──────────────── */
-.hairline {
-  border: 1px solid transparent;
-  background:
-    linear-gradient(var(--void-elevated), var(--void-elevated)) padding-box,
-    var(--gradient-border) border-box;
-  border-radius: var(--radius-md);
 }
 
 /* ── chip / badge ──────────────────────────────────────────────────────────── */
@@ -126,156 +240,130 @@
   gap: var(--space-2);
   padding: 4px 10px;
   font-size: var(--text-xs);
-  letter-spacing: 0.02em;
+  font-family: var(--font-mono);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
   font-weight: 500;
-  color: var(--text);
+  color: var(--paper);
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--void-elevated) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--void-edge) 80%, transparent);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
 }
-
 .chip-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--gradient-accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accretion-1) 70%, transparent);
 }
-
 .chip-released {
-  color: color-mix(in srgb, var(--accretion-1) 90%, var(--text));
+  color: var(--gold);
 }
+.chip-coming { color: var(--paper-muted); }
+.chip-coming .chip-dot { background: var(--paper-soft); }
 
-.chip-coming {
-  color: var(--muted);
-}
-
-.chip-coming .chip-dot {
-  background: var(--muted-2);
-  box-shadow: none;
-}
-
-/* ── card (used by ProductCard) ───────────────────────────────────────────── */
+/* ── card (editorial: minimal, hairline + numbered) ───────────────────────── */
 .card {
   position: relative;
   display: flex;
   flex-direction: column;
-  background: color-mix(in srgb, var(--void-elevated) 90%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border-radius: var(--radius-lg);
-  padding: var(--space-5);
-  box-shadow: var(--shadow-soft);
-  transition:
-    transform var(--duration-base) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-out);
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  transition: transform var(--duration-base) var(--ease-out);
   isolation: isolate;
   overflow: hidden;
+  color: var(--paper);
 }
 
-.card::before {
-  /* gradient edge accent — only on hover */
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: var(--gradient-border);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  opacity: 0;
-  transition: opacity var(--duration-base) var(--ease-out);
-  z-index: -1;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lift);
-}
-
-.card:hover::before {
-  opacity: 1;
-}
-
-/* ── scroll-reveal initial state is hidden; JS toggles `is-revealed` ─────── */
+/* ── scroll-reveal ─────────────────────────────────────────────────────────── */
 .reveal {
   opacity: 0;
-  transform: translateY(16px);
+  transform: translateY(24px);
   transition:
     opacity var(--duration-slow) var(--ease-out),
     transform var(--duration-slow) var(--ease-out);
   transition-delay: var(--reveal-delay, 0ms);
 }
-
 .reveal.is-revealed {
   opacity: 1;
   transform: none;
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .reveal {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
+  .reveal { opacity: 1; transform: none; transition: none; }
 }
 
-/* ── hairline divider ──────────────────────────────────────────────────────── */
+/* parallax: gentle scroll-driven Y translation, set via JS or data-parallax */
+.parallax {
+  --parallax-distance: 80px;
+  transform: translateY(calc(var(--parallax-distance) * var(--parallax-progress, 0)));
+  transition: transform 50ms linear;
+  will-change: transform;
+}
+
+/* ── hairline divider (subtle premium signature) ──────────────────────────── */
 .divider {
   height: 1px;
-  background: var(--gradient-border);
-  opacity: 0.4;
+  background: color-mix(in srgb, var(--ink-edge) 100%, transparent);
+  opacity: 1;
   border: 0;
-  margin-block: var(--space-7);
+  margin-block: var(--space-section);
 }
 
-/* markdown body styles (used by ProductDescription) */
+/* ── markdown (product description body) ───────────────────────────────────── */
 .markdown {
-  color: var(--text);
+  color: var(--paper);
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
+  max-width: 64ch;
 }
-
-.markdown > * + * {
-  margin-top: var(--space-4);
-}
-
-.markdown strong {
-  color: var(--text-strong);
-  font-weight: 600;
-}
-
-.markdown em {
-  color: var(--muted);
-  font-style: italic;
-}
-
+.markdown > * + * { margin-top: var(--space-5); }
+.markdown strong { color: var(--text-strong); font-weight: 600; }
+.markdown em { color: var(--paper-muted); font-style: italic; }
 .markdown code {
   padding: 2px 6px;
-  background: color-mix(in srgb, var(--void-edge) 60%, transparent);
-  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--ink-edge) 80%, transparent);
+  border-radius: 0;
   font-size: 0.92em;
-  color: color-mix(in srgb, var(--accretion-1) 80%, var(--text));
+  color: var(--gold);
 }
-
 .markdown a {
   color: var(--text-strong);
-  border-bottom: 1px solid color-mix(in srgb, var(--lensing) 50%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--gold) 50%, transparent);
   transition: border-color var(--duration-fast) var(--ease-out);
 }
+.markdown a:hover { border-color: var(--gold); }
 
-.markdown a:hover {
-  border-color: var(--accretion-1);
-}
-
-/* ── generic prose helper for hero copy ───────────────────────────────────── */
+/* ── prose lead body ───────────────────────────────────────────────────────── */
 .lead {
   font-size: var(--text-md);
   line-height: var(--leading-relaxed);
-  color: var(--muted);
+  color: var(--paper-muted);
   max-width: 60ch;
+}
+
+/* ── scroll progress (thin neon line pinned to top, fills as user scrolls) ── */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: calc(var(--z-nav) + 1);
+  background: transparent;
+  pointer-events: none;
+}
+.scroll-progress > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--gradient-accent);
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--neon) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--neon) 50%, transparent);
+  transform-origin: left center;
+  transition: width 60ms linear;
+  will-change: width;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-progress > span { transition: none; }
 }

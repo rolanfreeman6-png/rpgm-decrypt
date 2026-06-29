@@ -41,7 +41,7 @@ const canonical = new URL(pathname ?? Astro.url.pathname, Astro.site ?? 'https:/
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#05060a" />
+    <meta name="theme-color" content="#060308" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex" />}
@@ -65,7 +65,29 @@ const canonical = new URL(pathname ?? Astro.url.pathname, Astro.site ?? 'https:/
   <body>
     <!-- client-side only — bundled by Astro, never runs at SSR -->
     <script>import '../scripts/scroll-reveal.ts';</script>
+    <script>
+      // update red scroll-progress bar on scroll
+      const bar = document.querySelector<HTMLElement>('[data-scroll-progress] > span');
+      if (bar) {
+        let raf = 0;
+        const update = (): void => {
+          const doc = document.documentElement;
+          const max = doc.scrollHeight - doc.clientHeight;
+          const pct = max > 0 ? (window.scrollY / max) * 100 : 0;
+          bar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+          raf = 0;
+        };
+        const onScroll = (): void => {
+          if (raf) return;
+          raf = window.requestAnimationFrame(update);
+        };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll);
+        update();
+      }
+    </script>
 
+    <div class="scroll-progress" aria-hidden="true" data-scroll-progress><span></span></div>
     <a href="#main" class="sr-only">Skip to main content</a>
     <Nav pathname={pathname ?? Astro.url.pathname} />
     <main id="main">

@@ -102,7 +102,8 @@
           const r = radius * (DISK_INNER + (DISK_OUTER - DISK_INNER) * t);
           const theta = rand() * Math.PI * 2;
           // particles closer to the inside are warmer (accretion glow)
-          const hue = 20 + (1 - t) * 32 + (rand() - 0.5) * 6; // 14..52 deg
+          // particles between red-coral (outer) and pink (inner) — wraps 360° via modulo
+          const hue = Math.round((350 + (1 - t) * 25 + (rand() - 0.5) * 8 + 360) % 360); // ~340..15
           particles.push({
             r,
             theta,
@@ -151,12 +152,12 @@
         ctx.globalAlpha = 1;
 
         // ── accretion ring (drawn as a soft gradient + particles) ────
-        // soft halo behind particles
+        // soft red-neon halo behind particles
         const halo = ctx.createRadialGradient(cx, cy, radius * DISK_INNER * 0.6, cx, cy, radius * DISK_OUTER * 1.4);
-        halo.addColorStop(0, 'rgba(255, 138, 61, 0.0)');
-        halo.addColorStop(0.45, 'rgba(255, 138, 61, 0.20)');
-        halo.addColorStop(0.65, 'rgba(138, 92, 255, 0.18)');
-        halo.addColorStop(1, 'rgba(110, 139, 255, 0.0)');
+        halo.addColorStop(0,    'rgba(255,  46,  85, 0.0)');
+        halo.addColorStop(0.45, 'rgba(255,  46,  85, 0.35)');
+        halo.addColorStop(0.65, 'rgba(128,   0,  32, 0.25)');
+        halo.addColorStop(1,    'rgba(255, 117, 133, 0.0)');
         ctx.fillStyle = halo;
         ctx.beginPath();
         ctx.arc(cx, cy, radius * DISK_OUTER * 1.4, 0, Math.PI * 2);
