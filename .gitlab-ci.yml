@@ -181,7 +181,9 @@ ocaml-cameleer:
 
 # ---- Product binaries (built after the gates pass; consumed by the GitHub --
 # release job below). GitLab is the build/test farm; GitHub is the clean
-# distribution channel. Each publish job is a gate for the release.
+# distribution channel. The OCaml static binary (publish-ocaml) is the flagship;
+# the F# self-contained builds (publish-linux/publish-windows) are secondary.
+# Each publish job is a gate for the release.
 publish-linux:
   stage: publish
   needs: ["build-test"]
@@ -214,36 +216,88 @@ publish-windows:
       - artifacts/win-x64/rpgm-decrypt.exe
     expire_in: 1 week
 
-# OCaml port native Linux binary (bonus asset; depends on libz1c2 at runtime via
-# camlzip). Not self-contained like the F# single-file, so the release notes flag
-# the dependency.
+# ---- OCaml flagship binary: statically-linked musl Linux single file ---------
+# This is the PRIMARY release artifact. Built on Alpine (musl libc) with the
+# `static` dune profile (-cclib -static) so libz (camlzip's only C dep) and the
+# C runtime are linked in: the result is one self-contained file that runs on
+# any x86-64 Linux (glibc or musl) with zero runtime dependencies. yojson/re are
+# pure OCaml; `unix` is part of the OCaml stdlib. The parity suite is re-run on
+# the static toolchain so the shipped binary is validated, not just the ubuntu
+# gate. Hard (non-allow_failure) dependency of github-release: if the flagship
+# cannot build, nothing ships.
 publish-ocaml:
   stage: publish
-  image: ubuntu:26.04
+  image: alpine:3.20
   needs: ["ocaml-build-test"]
-  variables:
-    DEBIAN_FRONTEND: noninteractive
   before_script:
-    - apt-get update -qq
-    - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev
+    - apk add --no-cache ocaml opam build-base musl-dev zlib-dev bash coreutils file
+    - opam init --disable-sandboxing --bare -ay
+    - opam switch create default ocaml-system -y
+    - opam install -y dune camlzip yojson re
   script:
     - cd ocaml
-    - dune build --profile release bin/main.exe
+    - eval $(opam env)
+    - dune build --profile static bin/main.exe test/test.exe
+    - dune exec --profile static test/test.exe
     - mkdir -p ../artifacts
-    - cp _build/default/bin/main.exe ../artifacts/rpgm-decrypt-ocaml-linux
-    - chmod +x ../artifacts/rpgm-decrypt-ocaml-linux
-    - ldd ../artifacts/rpgm-decrypt-ocaml-linux || true
-    - ../artifacts/rpgm-decrypt-ocaml-linux --version
+    - cp _build/default/bin/main.exe ../artifacts/rpgm-decrypt-linux-x64
+    - chmod +x ../artifacts/rpgm-decrypt-linux-x64
+    - file ../artifacts/rpgm-decrypt-linux-x64
+    - ldd ../artifacts/rpgm-decrypt-linux-x64 || echo "statically linked (no dynamic deps)"
+    - ../artifacts/rpgm-decrypt-linux-x64 --version
   artifacts:
     paths:
-      - artifacts/rpgm-decrypt-ocaml-linux
+      - artifacts/rpgm-decrypt-linux-x64
+    expire_in: 1 week
+
+# ---- OCaml native Windows .exe (manual; scarce SaaS Windows minutes) --------
+# Not a hard dependency of github-release (manual + allow_failure) so the
+# automatic main/tag release is not blocked by it. When run, it builds the
+# Windows OCaml binary and, if GITHUB_RELEASE_TOKEN is set, attaches it to the
+# existing continuous/tag release on GitHub. opam on Windows bootstraps Cygwin
+# + builds the compiler (slow) — hence opt-in.
+publish-ocaml-windows:
+  stage: publish
+  tags:
+    - saas-windows-medium-amd64
+  needs: ["ocaml-build-test-windows"]
+  when: manual
+  allow_failure: true
+  before_script:
+    - choco install opam --yes --no-progress
+    - opam init --auto-setup --yes --disable-sandboxing
+    - opam install --yes dune camlzip yojson re
+  script:
+    - cd ocaml
+    - opam exec -- dune build --profile release bin/main.exe
+    - mkdir -p ..\artifacts
+    - copy _build\default\bin\main.exe ..\artifacts\rpgm-decrypt-win-x64.exe
+    - .\..\artifacts\rpgm-decrypt-win-x64.exe --version
+    - |
+      if ($env:GITHUB_RELEASE_TOKEN) {
+        $api = "https://api.github.com/repos/rolanfreeman6-png/rpgm-decrypt"
+        $hdr = @{ Authorization = "Bearer $env:GITHUB_RELEASE_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2022-11-28" }
+        $tag = if ($env:CI_COMMIT_TAG) { $env:CI_COMMIT_TAG } else { "continuous" }
+        $rel = Invoke-RestMethod -Uri "$api/releases/tags/$tag" -Headers $hdr
+        $up = ($rel.upload_url -replace '\{\?name,label\}','')
+        $p = "$PWD\..\artifacts\rpgm-decrypt-win-x64.exe"
+        $bytes = [System.IO.File]::ReadAllBytes($p)
+        Invoke-RestMethod -Uri "$up`?name=rpgm-decrypt-win-x64.exe" -Method Post -Headers $hdr -ContentType "application/octet-stream" -Body $bytes
+        Write-Output "uploaded rpgm-decrypt-win-x64.exe to release $tag"
+      } else {
+        Write-Output "GITHUB_RELEASE_TOKEN unset; artifact produced but not uploaded to GitHub"
+      }
+  artifacts:
+    paths:
+      - artifacts/rpgm-decrypt-win-x64.exe
     expire_in: 1 week
 
 # ---- Ship the tested binaries to GitHub as a Release ------------------------
 # Runs only AFTER every gate (F# build+test, OCaml parity, OCaml verification,
 # afl-fuzz) and every publish job has produced a binary. Creates a GitHub
-# Release on rolanfreeman6-png/rpgm-decrypt and uploads the three assets via the
-# GitHub REST API.
+# Release on rolanfreeman6-png/rpgm-decrypt and uploads the assets via the
+# GitHub REST API. The OCaml static binary is the flagship (uploaded first,
+# canonical name); the F# self-contained builds are secondary assets.
 #
 # Triggers:
 #   - tags matching ^v\d   -> stable release (tag already exists on GitHub)
@@ -287,11 +341,11 @@ github-release:
       if [ -n "${CI_COMMIT_TAG:-}" ]; then
         TAG="$CI_COMMIT_TAG"; PRE=false
         NAME="rpgm-decrypt $TAG"
-        BODY="Release ${TAG} from commit ${CI_COMMIT_SHA}.\n\nGates: F# build-test ✓, OCaml parity 72/72 ✓, QCheck2 12/12 ✓, gospel check ✓, afl-fuzz 90s ✓."
+        BODY="Release ${TAG} from commit ${CI_COMMIT_SHA}.\n\nPrimary download: rpgm-decrypt-linux-x64 — OCaml, statically-linked, single file, no runtime deps.\n\nGates: F# build-test ✓, OCaml parity 72/72 ✓, QCheck2 12/12 ✓, gospel check ✓, afl-fuzz 90s ✓.\n\nSecondary: rpgm-decrypt-fsharp-linux-x64 / rpgm-decrypt-fsharp-win-x64.exe (.NET 10 self-contained). Windows OCaml .exe attached separately (manual job)."
       else
         TAG="continuous"; PRE=true
         NAME="rpgm-decrypt continuous ($CI_COMMIT_SHORT_SHA)"
-        BODY="Continuous build from main ${CI_COMMIT_SHA}. Same gates as a tag release. Overwritten on every push to main."
+        BODY="Continuous build from main ${CI_COMMIT_SHA}. Primary: rpgm-decrypt-linux-x64 (OCaml static). Same gates as a tag release. Overwritten on every push to main."
         OLD=$(curl -fsS -H "$AUTH" -H "$ACC" "$API/releases/tags/continuous" | jq -r '.id // empty')
         if [ -n "$OLD" ]; then
           echo "Deleting previous continuous release $OLD"
@@ -314,7 +368,7 @@ github-release:
           --data-binary @"$f" "$UPLOAD?name=$name"
         echo " uploaded $name ($(wc -c < "$f") bytes)"
       }
-      upload artifacts/linux-x64/rpgm-decrypt rpgm-decrypt-linux-x64
-      upload artifacts/win-x64/rpgm-decrypt.exe rpgm-decrypt-win-x64.exe
-      upload artifacts/rpgm-decrypt-ocaml-linux rpgm-decrypt-ocaml-linux
+      upload artifacts/rpgm-decrypt-linux-x64 rpgm-decrypt-linux-x64
+      upload artifacts/linux-x64/rpgm-decrypt rpgm-decrypt-fsharp-linux-x64
+      upload artifacts/win-x64/rpgm-decrypt.exe rpgm-decrypt-fsharp-win-x64.exe
       echo "=== Release $TAG published to https://github.com/$GH_OWNER/$GH_REPO/releases/tag/$TAG ==="
