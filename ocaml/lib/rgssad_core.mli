@@ -9,6 +9,11 @@
     keeps it a large positive, caught by the [pos + len > buf_len] bounds check
     instead. Behaviour is identical ([Truncated]), with no negative wrap. *)
 
+(* Uninterpreted helpers (Gospel 0.3.1 has no Bytes/String theory). *)
+(*@ function bytes_length (b: bytes) : integer *)
+(*@ function bytes_get_int (b: bytes) (i: integer) : integer *)
+(*@ function string_length (s: string) : integer *)
+
 type entry = { index : int; name : string; offset : int; size : int }
 (** One decoded archive entry. [offset] and [size] point into the archive buffer
     (ZLIB wrapping intact for the payload). *)
@@ -35,10 +40,22 @@ val magic_key : bytes
 val xor_decode_name : bytes -> string
 (** [xor_decode_name raw] XOR-decodes [raw] against {!magic_key} cyclically and
     trims trailing NUL padding. *)
+(*@ r = xor_decode_name raw
+    ensures string_length r <= bytes_length raw *)
 
 val read_u32_le : bytes -> int -> int
 (** [read_u32_le buf pos] reads a little-endian unsigned 32-bit word at [pos].
     No bounds check: the caller ensures [pos + 3 < length buf]. *)
+(*@ r = read_u32_le buf pos
+    requires 0 <= pos
+    requires pos + 4 <= bytes_length buf
+    ensures
+      r =
+        logor
+          (bytes_get_int buf pos)
+          (logor (shift_left (bytes_get_int buf (pos + 1)) 8)
+             (logor (shift_left (bytes_get_int buf (pos + 2)) 16)
+                (shift_left (bytes_get_int buf (pos + 3)) 24))) *)
 
 val parse : int -> sentinel -> bytes -> (entry list * int, parse_error) result
 (** [parse version sentinel buf] parses the archive [buf] requiring version byte
@@ -46,8 +63,16 @@ val parse : int -> sentinel -> bytes -> (entry list * int, parse_error) result
     on success, or an [Error] describing the failure. Never raises: corrupt or
     truncated input yields [Error Truncated] rather than an out-of-bounds
     access. *)
+(*@ r = parse version sentinel buf
+    ensures
+      match r with
+      | Ok (_, p) -> 0 <= p && p <= bytes_length buf
+      | Error _ -> true *)
 
 val read_entry : bytes -> entry -> bytes
 (** [read_entry buf e] extracts the raw payload bytes for entry [e] from [buf],
     clamped to the buffer end (returns an empty buffer if [e.offset] is out of
     range). *)
+(*@ r = read_entry buf e
+    ensures bytes_length r <= e.size
+    ensures (e.offset < 0 || e.offset >= bytes_length buf) -> bytes_length r = 0 *)
