@@ -16,6 +16,7 @@ depends: [
   "re" {>= "1.10"}
   "qcheck" {with-test & >= "0.91"}
   "gospel" {with-test}
+  "bisect_ppx" {with-test & >= "2.8.0"}
 ]
 build: [
   ["dune" "build" "-p" name "-j" jobs]
