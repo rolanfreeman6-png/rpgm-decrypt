@@ -160,6 +160,34 @@ We deliberately do not commit real RPG Maker game bytes to the repo
 to avoid licensing complications; use `dotnet run --project` to
 exercise the synthetic fixtures before pointing the binary at a real game.
 
+## Distribution (GitLab → GitHub)
+
+GitLab CI (`.gitlab-ci.yml`) is the build/test farm — it has the subscription
+minutes to run the heavy gates:
+
+- F# build + tests (`build-test`, `build-test-windows`)
+- OCaml port parity (`ocaml-build-test`, 72 checks) + property/Gospel verification
+  (`ocaml-verification`, 12 QCheck2 properties + `gospel check`)
+- Coverage-guided fuzzing (`ocaml-fuzz`, afl-fuzz 90s)
+- Product binaries: `publish-linux` (F# linux-x64 self-contained),
+  `publish-windows` (F# win-x64 self-contained), `publish-ocaml` (OCaml native
+  Linux, needs `libz1c2` at runtime)
+
+After **all** gates and publish jobs pass, `github-release` creates a GitHub
+Release on `rolanfreeman6-png/rpgm-decrypt` and uploads the three binaries:
+
+- push to `main` → `continuous` prerelease (overwritten each push)
+- tag `v…` → stable release
+
+Setup (one-time): add a CI/CD variable `GITHUB_RELEASE_TOKEN` in GitLab →
+Settings → CI/CD → Variables — a GitHub PAT with **Contents read/write** on
+`rolanfreeman6-png/rpgm-decrypt` (classic PAT: `repo` scope; fine-grained:
+"Contents: Read and write"). Mark it masked + protected. Without it the
+release job fails fast with a clear message and nothing is shipped.
+
+GitHub is the clean distribution channel — releases land there once GitLab has
+verified them.
+
 ## License
 
 Apache-2.0. See `LICENSE`.
