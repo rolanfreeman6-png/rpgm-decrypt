@@ -3,116 +3,133 @@
  * shifts. Keep names human-readable: any customer-side edit should not require
  * touching logic.
  *
- *   • Colors:    layered dark background + a single accent gradient.
- *   • Spacing:   8-pt base grid (multiples of 0.5rem).
- *   • Type:      modular scale, tight tracking on headings.
- *   • Motion:    slow, soft easing; reduced-motion collapses to instant.
- *   • Radii:     three levels — sharp / soft / pill.
+ *   • Colors:    warmer near-black with cream paper, one warm-accent gradient.
+ *   • Spacing:   8-pt base grid.
+ *   • Type:      MUCH bigger display scale (clamp-driven so it scales with vw).
+ *   • Motion:    slow, soft easing; reduce-motion collapses to instant.
  * ─────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* ── palette (singularity / black hole) ───────────────────────────────────── */
-  --void: #05060a;                /* base canvas */
-  --void-elevated: #0a0d18;       /* card / nav background */
-  --void-edge: #121626;           /* hairline borders source */
-  --event-horizon: #000;          /* pure black, used sparingly */
+  /* ── palette (singularity black + red neon — derivation of the
+     black-hole aesthetic, but recoloured to red coral neon over deep ink). ─── */
+  --ink:        #060308;          /* base canvas — near-black with violet undertone */
+  --ink-deep:   #020104;          /* deepest layer behind everything */
+  --ink-elev:   #0f0a12;          /* card / nav background */
+  --ink-edge:   #1a1320;          /* hairline borders source */
 
-  --accretion-1: #ff8a3d;         /* warm orange — anchor of accent */
-  --accretion-2: #ffd27a;         /* warm gold — bridge */
-  --lensing: #6e8bff;             /* cool blue — depth */
-  --violet: #8a5cff;              /* brand violet —
+  --paper:      #efe3e3;          /* primary copy — slightly warm white */
+  --paper-strong:#ffffff;         /* max contrast */
+  --paper-muted:#9a8e92;          /* secondary copy */
+  --paper-soft: #5e5258;          /* tertiary */
 
- gradient terminus */
+  --neon:       #ff2e55;          /* primary red neon accent */
+  --neon-soft:  #ff7585;          /* warmer / lighter pink */
+  --neon-deep:  #800020;          /* dark red companion */
+  --ember:      #ff8a3d;          /* rare warm ember — used at gradient terminus */
 
-  --text: #e8eaf0;                /* primary copy */
-  --text-strong: #ffffff;         /* max contrast, used in titles */
-  --muted: #9aa0b4;               /* secondary copy */
-  --muted-2: #6a7088;             /* tertiary copy / disabled */
-
-  /* single accent gradient — used on ≤5% of any screen, never as background */
   --gradient-accent: linear-gradient(
-    120deg,
-    var(--accretion-1) 0%,
-    var(--violet) 100%
+    110deg,
+    var(--neon) 0%,
+    var(--ember) 100%
   );
   --gradient-accent-soft: linear-gradient(
-    120deg,
-    color-mix(in srgb, var(--accretion-1) 70%, transparent),
-    color-mix(in srgb, var(--violet) 60%, transparent)
+    110deg,
+    color-mix(in srgb, var(--neon) 70%, transparent),
+    color-mix(in srgb, var(--ember) 60%, transparent)
   );
   --gradient-border: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accretion-1) 30%, transparent),
-    color-mix(in srgb, var(--lensing) 25%, transparent)
+    color-mix(in srgb, var(--neon) 35%, transparent),
+    color-mix(in srgb, var(--neon-deep) 25%, transparent)
   );
 
-  /* ── spacing (8-pt grid; —0.5rem to 12rem for layout density) ────────────── */
+  /* foreground aliases (preserve names so other CSS doesn't break) */
+  --void:           var(--ink);
+  --event-horizon:  var(--ink-deep);
+  --accretion-1:    var(--neon);
+  --accretion-2:    var(--neon-soft);
+  --lensing:        var(--ember);
+  --violet:         var(--neon-deep);
+  --text:           var(--paper);
+  --text-strong:    var(--paper-strong);
+  --muted:          var(--paper-muted);
+  --muted-2:        var(--paper-soft);
+
+  /* ── spacing (8-pt grid; scale up the largest 3 for editorial air) ──────── */
   --space-0: 0;
-  --space-1: 0.25rem;   /*  4 px — tight */
-  --space-2: 0.5rem;    /*  8 px — base half */
-  --space-3: 0.75rem;   /* 12 px */
-  --space-4: 1rem;      /* 16 px */
-  --space-5: 1.5rem;    /* 24 px */
-  --space-6: 2rem;      /* 32 px */
-  --space-7: 3rem;      /* 48 px */
-  --space-8: 4rem;      /* 64 px — section break */
-  --space-9: 6rem;      /* 96 px */
-  --space-10: 8rem;     /* 128 px — hero */
-  --space-11: 12rem;    /* 192 px — first-screen air */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+  --space-10: 8rem;
+  --space-11: 12rem;
+  --space-section:    clamp(6rem, 12vh, 10rem);
+  --space-section-lg: clamp(9rem, 18vh, 16rem);
 
-  /* ── type scale (modular, base 1rem = 16 px, ratio ~1.25) ────────────────── */
-  --text-xs:   0.75rem;    /* 12 px */
-  --text-sm:   0.875rem;   /* 14 px */
-  --text-base: 1rem;       /* 16 px */
-  --text-md:   1.125rem;   /* 18 px */
-  --text-lg:   1.375rem;   /* 22 px */
-  --text-xl:   1.75rem;    /* 28 px */
-  --text-2xl:  2.25rem;    /* 36 px */
-  --text-3xl:  3rem;       /* 48 px */
-  --text-4xl:  4rem;       /* 64 px */
-  --text-5xl:  5.5rem;     /* 88 px — hero title */
+  /* ── type scale (display goes BIG; clamp by viewport width) ─────────────── */
+  --text-xs:   0.75rem;        /* 12 px */
+  --text-sm:   0.875rem;       /* 14 px */
+  --text-base: 1rem;           /* 16 px */
+  --text-md:   1.125rem;       /* 18 px */
+  --text-lg:   1.375rem;       /* 22 px */
+  --text-xl:   1.75rem;        /* 28 px */
+  --text-2xl:  2.5rem;         /* 40 px */
+  --text-3xl:  clamp(2.5rem, 6vw, 4.5rem);     /* 40 → 72 px */
+  --text-4xl:  clamp(3.5rem, 8vw, 6.5rem);     /* 56 → 104 px */
+  --text-5xl:  clamp(5rem, 13vw, 11rem);       /* 80 → 176 px — hero display */
+  --text-marker: clamp(2.25rem, 4vw, 3.5rem);  /* vertical section marker */
 
-  --leading-tight:   1.05;
-  --leading-snug:    1.25;
+  --leading-tight:   1.04;
+  --leading-snug:    1.18;
+  --leading-display: 0.96;          /* tighter — display titles */
   --leading-normal:  1.5;
   --leading-relaxed: 1.7;
 
-  --tracking-tighter: -0.035em;  /* large display */
-  --tracking-tight:   -0.022em;  /* h1 / h2 */
-  --tracking-normal:  -0.01em;   /* h3 / h4 */
-  --tracking-wide:    0.04em;    /* overline only */
+  --tracking-tightest: -0.05em;
+  --tracking-tighter:  -0.035em;
+  --tracking-tight:    -0.022em;
+  --tracking-normal:   -0.01em;
+  --tracking-wide:     0.04em;
+  --tracking-marker:   0.32em;      /* vertical section markers, more letter-spaced */
 
-  --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
-               'Segoe UI', Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo,
-               Consolas, monospace;
+  --font-sans:  'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+                'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono:  'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo,
+                Consolas, monospace;
+  --font-display: 'Inter Variable', 'Inter', system-ui, sans-serif; /* tightest sans */
 
-  /* ── radii (3 levels, consistent) ────────────────────────────────────────── */
-  --radius-sm:   6px;
-  --radius-md:   12px;
-  --radius-lg:   20px;
-  --radius-pill: 9999px;
+  /* ── radii ──────────────────────────────────────────────────────────────── */
+  --radius-sm:   0;                /* editorial: right angles beat rounded */
+  --radius-md:   2px;              /* near-zero — only structural */
+  --radius-lg:   4px;
+  --radius-pill: 9999px;           /* only for chips / status pills */
 
-  /* ── elevation (very soft — premium not plastic) ─────────────────────────── */
-  --shadow-soft: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
-                 0 8px 24px -10px rgba(0, 0, 0, 0.5);
-  --shadow-lift: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+  /* ── elevation (very soft — premium not plastic, mostly mixed-on-flat) ──── */
+  --shadow-soft: 0 1px 0 0 rgba(244, 238, 227, 0.04) inset;
+  --shadow-lift: 0 1px 0 0 rgba(244, 238, 227, 0.05) inset,
                  0 18px 40px -16px rgba(0, 0, 0, 0.6);
-  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accretion-1) 35%, transparent),
-                 0 14px 40px -10px color-mix(in srgb, var(--violet) 45%, transparent);
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--gold) 35%, transparent),
+                 0 14px 40px -10px color-mix(in srgb, var(--copper) 35%, transparent);
 
   /* ── motion ──────────────────────────────────────────────────────────────── */
-  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);   /* primary ease — Linear-ish */
-  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);
-  --duration-fast:  180ms;
-  --duration-base:  320ms;
-  --duration-slow:  520ms;
-  --duration-stage: 760ms;        /* hero entrance */
+  --ease-out:     cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:  cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-elastic: cubic-bezier(0.34, 1.56, 0.64, 1);   /* micro-bounce on stat values */
+  --duration-fast:  220ms;
+  --duration-base:  380ms;
+  --duration-slow:  620ms;
+  --duration-stage: 880ms;
+  --duration-glow:  1200ms;
 
   /* ── layout ──────────────────────────────────────────────────────────────── */
-  --container-narrow: 720px;      /* reading width */
-  --container-wide:   1180px;     /* header / catalog */
-  --container-full:   1480px;     /* hero edges */
+  --container-narrow: 720px;
+  --container-wide:   1280px;            /* wider — editorial spread */
+  --container-full:   1640px;
 
   /* ── z-index ─────────────────────────────────────────────────────────────── */
   --z-nav:    50;
@@ -120,12 +137,13 @@
   --z-toast:  90;
 }
 
-/* ── user "reduce motion" overrides duration/easing globally ─────────────── */
+/* ── reduce-motion override ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   :root {
-      --duration-fast:  1ms;
+    --duration-fast:  1ms;
     --duration-base:  1ms;
     --duration-slow:  1ms;
     --duration-stage: 1ms;
+    --duration-glow:  1ms;
   }
 }

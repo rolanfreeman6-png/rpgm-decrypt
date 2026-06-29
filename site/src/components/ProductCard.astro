@@ -1,21 +1,26 @@
 ---
 /**
- * ProductCard — single tile in the catalog grid.
- *   • Poster sheet on the left (16:9 ratio inside a glass frame).
- *   • Name, tagline, status chip on the right.
- *   • Whole card is a link to /product/<slug>.
- *   • Coming-soon cards are de-emphasised but still clickable (so users
- *     can see "no, really, this slot is empty").
+ * ProductCard — editorial layout: numbered header, big stacked name,
+ * poster or placeholder, minimal tagline. Coming-soon cards desaturated.
+ *
+ * Each card is also a link to /product/<slug>.
+ *
+ * Props:
+ *   product     — the catalog entry
+ *   revealDelay — ms; stagger between siblings
+ *   index       — 1-based ordinal; rendered as monospace prefix
  */
-import type { Product } from '../data/products.ts';
+import type { Product } from '../data/products';
 
 interface Props {
   product: Product;
   revealDelay?: number;
+  index?: number;
 }
-const { product, revealDelay = 0 } = Astro.props;
+const { product, revealDelay = 0, index = 0 } = Astro.props;
 const isComing = product.status === 'coming-soon';
 const href = `/product/${product.slug}`;
+const idxText = String(index).padStart(2, '0');
 ---
 <a
   href={href}
@@ -23,31 +28,31 @@ const href = `/product/${product.slug}`;
   style={`--reveal-delay: ${revealDelay}ms`}
   data-slug={product.slug}
 >
-  <div class="product-card__poster hairline">
+  <header class="product-card__head">
+    <span class="product-card__idx">{idxText}</span>
+    <span class:list={[ 'chip', isComing ? 'chip-coming' : 'chip-released' ]} aria-hidden=true>
+      {isComing ? 'Coming soon' : 'Released'}
+    </span>
+  </header>
+
+  <div class="product-card__poster" aria-hidden="true">
     <img
       src={product.poster}
-      alt={'' /* decorative; the name carries the meaning */}
+      alt=""
       width="640"
       height="360"
       loading="lazy"
       decoding="async"
     />
-    <div class="product-card__poster-overlay" aria-hidden="true"></div>
+    <div class="product-card__poster-overlay"></div>
   </div>
 
   <div class="product-card__body">
-    <div class="product-card__chip-row">
-      <span class:list={[ 'chip', isComing ? 'chip-coming' : 'chip-released' ]}>
-        <span class="chip-dot" aria-hidden="true"></span>
-        {isComing ? 'Coming soon' : 'Released'}
-      </span>
-    </div>
-
-    <h3 class="product-card__name">{product.name}</h3>
+    <h3 class="product-card__name display-2">{product.name}</h3>
     <p class="product-card__tagline">{product.tagline}</p>
 
     <div class="product-card__cta" aria-hidden="true">
-      <span>View</span>
+      <span>Open</span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M5 12h14M13 5l7 7-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -57,38 +62,71 @@ const href = `/product/${product.slug}`;
 
 <style>
   .product-card {
-    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    color: var(--paper);
     text-decoration: none;
-    display: grid;
-    grid-template-rows: auto 1fr;
-    gap: var(--space-5);
+    padding-block: var(--space-5);
+    border-top: 1px solid color-mix(in srgb, var(--ink-edge) 100%, transparent);
+    position: relative;
   }
+  /* per card's own position underline accent that grows in on hover */
+  .product-card::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: var(--gradient-accent);
+    transform-origin: left center;
+    transform: scaleX(0);
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+  .product-card:hover::after { transform: scaleX(1); }
+  .product-card:hover .product-card__name { color: var(--gold); }
+  .product-card:hover .product-card__cta { color: var(--text-strong); }
+
+  .product-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+  .product-card__idx {
+    font-family: var(--font-mono);
+    color: var(--paper-muted);
+    font-size: var(--text-sm);
+    letter-spacing: var(--tracking-wide);
+  }
+  .product-card.is-coming .product-card__idx { color: var(--paper-soft); }
+
   .product-card__poster {
     position: relative;
     aspect-ratio: 16 / 9;
     overflow: hidden;
-    border-radius: var(--radius-md);
-    background: var(--void-elevated);
+    background: var(--ink-elev);
+    border-radius: 0;
   }
   .product-card__poster img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
-    transition: transform var(--duration-slow) var(--ease-out),
-                filter var(--duration-slow) var(--ease-out);
+    filter: grayscale(50%) brightness(0.85);
+    transition:
+      filter var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out);
   }
   .product-card__poster-overlay {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.55) 100%);
+    background: linear-gradient(180deg, rgba(12,11,9,0) 50%, rgba(12,11,9,0.5) 100%);
     pointer-events: none;
   }
   .product-card:hover .product-card__poster img {
-    transform: scale(1.04);
-  }
-  .product-card.is-coming .product-card__poster img {
-    filter: grayscale(60%) brightness(0.7);
+    filter: grayscale(0%) brightness(1);
+    transform: scale(1.02);
   }
 
   .product-card__body {
@@ -96,33 +134,30 @@ const href = `/product/${product.slug}`;
     flex-direction: column;
     gap: var(--space-3);
   }
-  .product-card__chip-row { display: flex; }
   .product-card__name {
-    font-size: var(--text-xl);
-    letter-spacing: var(--tracking-tight);
-    font-weight: 600;
-    color: var(--text-strong);
+    transition: color var(--duration-fast) var(--ease-out);
+  }
+  .product-card.is-coming .product-card__name {
+    color: var(--paper-muted);
   }
   .product-card__tagline {
-    color: var(--muted);
+    color: var(--paper-muted);
     font-size: var(--text-base);
     line-height: var(--leading-snug);
+    max-width: 50ch;
   }
-  .product-card.is-coming .product-card__name { color: var(--text); }
-  .product-card.is-coming .product-card__tagline { opacity: 0.7; }
-
   .product-card__cta {
     margin-top: var(--space-3);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: var(--muted);
-    font-size: var(--text-sm);
-    letter-spacing: 0.02em;
-    transition: color var(--duration-fast) var(--ease-out), gap var(--duration-fast) var(--ease-out);
+    gap: var(--space-3);
+    color: var(--paper-muted);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    transition: color var(--duration-fast) var(--ease-out),
+                gap var(--duration-fast) var(--ease-out);
   }
-  .product-card:hover .product-card__cta {
-    color: var(--text);
-    gap: 10px;
-  }
+  .product-card:hover .product-card__cta { gap: var(--space-5); }
 </style>
