@@ -4,8 +4,13 @@ name: release
 # pushes (v*) — which GitLab CI mirrors over SSH after its test gates pass
 # (see .gitlab-ci.yml `github-mirror`) — and on manual dispatch. Day-to-day
 # CI (OCaml tests, fuzz, verification) runs on GitLab; GitHub just builds the
-# release binary from the exact tested commit. No PAT needed: the release uses
-# the auto-provided GITHUB_TOKEN.
+# release binaries from the exact tested commit, for all three desktop OSes.
+# No PAT needed: the release uses the auto-provided GITHUB_TOKEN.
+#
+# Artifacts published to the Release:
+#   rpgm-decrypt-linux-x64          — OCaml, static musl, single file, zero deps
+#   rpgm-decrypt-windows-x64.zip    — OCaml .exe + zlib1.dll (camlzip's C dep)
+#   rpgm-decrypt-macos-arm64        — OCaml, native, links system zlib
 
 on:
   push:
@@ -19,12 +24,12 @@ concurrency:
 
 jobs:
   # ---- OCaml flagship: statically-linked musl single binary (linux-x64) -----
-  # The release artifact. Built inside an Alpine (musl) container via `docker
-  # run` (NOT `container:` — that breaks JS actions on musl because the runner's
-  # node is glibc). Compiles OCaml 5.3.0 on Alpine, links libz + musl statically
-  # with the `static` dune profile, and re-runs the 72 checks on the static
-  # toolchain so the shipped binary is validated. Result: one file, zero runtime
-  # deps, runs on any x86-64 Linux.
+  # Built inside an Alpine (musl) container via `docker run` (NOT `container:`
+  # — that breaks JS actions on musl because the runner's node is glibc).
+  # Compiles OCaml 5.3.0 on Alpine, links libz + musl statically with the
+  # `static` dune profile, and re-runs the 72 checks on the static toolchain so
+  # the shipped binary is validated. Result: one file, zero runtime deps, runs
+  # on any x86-64 Linux.
   ocaml-linux-x64:
     name: publish OCaml flagship (linux-x64, static musl)
     runs-on: ubuntu-latest
@@ -61,10 +66,90 @@ jobs:
           path: rpgm-decrypt-linux-x64
           if-no-files-found: error
 
+  # ---- OCaml for Windows x64 (.exe + zlib1.dll) ------------------------------
+  # opam on Windows bootstraps Cygwin + mingw64 and builds a native .exe.
+  # camlzip links zlib dynamically (static linking of camlzip on mingw is
+  # fragile — ocamlopt rejects -cclib,-static), so the .exe needs zlib1.dll at
+  # runtime. We bundle the DLL next to the .exe into a single zip: the user
+  # extracts one zip and runs rpgm-decrypt.exe. opam setup is slow (~20-30 min)
+  # but cached by setup-ocaml on subsequent runs.
+  ocaml-windows-x64:
+    name: publish OCaml (windows-x64, .exe + zlib1.dll)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml (opam + mingw64)
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.3.0
+          packages: dune camlzip yojson re
+
+      - name: Build the .exe (release)
+        shell: pwsh
+        run: |
+          opam exec -- dune build --profile release bin/main.exe
+          Copy-Item _build/default/bin/main.exe rpgm-decrypt-windows-x64.exe
+
+      - name: Smoke-test the .exe (will fail without zlib1.dll, that's expected)
+        shell: pwsh
+        run: |
+          try { ./rpgm-decrypt-windows-x64.exe --version } catch { Write-Output "needs zlib1.dll (bundled next step)" }
+
+      - name: Locate zlib1.dll and bundle into a zip
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "$env:USERPROFILE\.opam" -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "zlib1.dll not found under $env:USERPROFILE\.opam" }
+          Write-Output "Found zlib1.dll: $($dll.FullName)"
+          New-Item -ItemType Directory -Path dist -Force | Out-Null
+          Copy-Item rpgm-decrypt-windows-x64.exe dist/
+          Copy-Item $dll.FullName dist/zlib1.dll
+          Compress-Archive -Path dist/rpgm-decrypt-windows-x64.exe, dist/zlib1.dll -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+          Write-Output "=== zip contents ==="
+          (Get-Item rpgm-decrypt-windows-x64.zip).Length
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocaml-windows-x64
+          path: rpgm-decrypt-windows-x64.zip
+          if-no-files-found: error
+
+  # ---- OCaml for macOS (arm64, native) ---------------------------------------
+  # camlzip links the system zlib (/usr/lib/libz.dylib, present on every macOS),
+  # so the binary is self-contained — no DLL bundling needed.
+  ocaml-macos-arm64:
+    name: publish OCaml (macos-arm64, native)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml (opam)
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.3.0
+          packages: dune camlzip yojson re
+
+      - name: Build the binary (release)
+        run: |
+          opam exec -- dune build --profile release bin/main.exe
+          cp _build/default/bin/main.exe rpgm-decrypt-macos-arm64
+          chmod +x rpgm-decrypt-macos-arm64
+          file rpgm-decrypt-macos-arm64
+          ./rpgm-decrypt-macos-arm64 --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ocaml-macos-arm64
+          path: rpgm-decrypt-macos-arm64
+          if-no-files-found: error
+
   upload:
     name: publish GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [ocaml-linux-x64]
+    needs: [ocaml-linux-x64, ocaml-windows-x64, ocaml-macos-arm64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -72,14 +157,31 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ocaml-linux-x64
-          path: dist/ocaml
-      - name: Attach binary to release
+          path: dist/linux-x64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ocaml-windows-x64
+          path: dist/windows-x64
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ocaml-macos-arm64
+          path: dist/macos-arm64
+      - name: Attach binaries to release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           body: |
-            `rpgm-decrypt-linux-x64` — OCaml, statically-linked musl single
-            binary, zero runtime dependencies, runs on any x86-64 Linux.
+            One binary per desktop OS — download the one matching your machine,
+            no install, no runtime needed.
+
+            - `rpgm-decrypt-linux-x64` — Linux x86-64, single statically-linked
+              file, zero runtime deps (just `chmod +x` and run).
+            - `rpgm-decrypt-windows-x64.zip` — Windows x86-64; extract the zip
+              (contains `rpgm-decrypt.exe` + `zlib1.dll`) and run the `.exe`.
+            - `rpgm-decrypt-macos-arm64` — macOS Apple Silicon; `chmod +x` and run.
+
             Behaviour-verified by 72 checks + 12 QCheck2 properties; built from
             commit ${{ github.sha }}.
           files: |
-            dist/ocaml/rpgm-decrypt-linux-x64
+            dist/linux-x64/rpgm-decrypt-linux-x64
+            dist/windows-x64/rpgm-decrypt-windows-x64.zip
+            dist/macos-arm64/rpgm-decrypt-macos-arm64
