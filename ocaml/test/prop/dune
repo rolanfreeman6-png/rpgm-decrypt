@@ -1,0 +1,10 @@
+(executable
+ (name prop)
+ (libraries rpgm qcheck-core qcheck-core.runner)
+ (flags
+  (:standard
+   -w
+   +a-4-40-42-44-45-70
+   -strict-sequence
+   -strict-formats
+   -principal)))
