@@ -20,6 +20,10 @@ coverage/
 coverage.xml
 *.trx
 
+# ...but ocaml/coverage/ is the committed bisect_ppx coverage report, not build output.
+!ocaml/coverage/
+!ocaml/coverage/**
+
 # Native AOT publish
 publish/
 out/

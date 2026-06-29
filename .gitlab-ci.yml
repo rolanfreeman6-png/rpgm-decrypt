@@ -172,6 +172,37 @@ ocaml-verification:
     - gospel check lib/dispatch.mli -L /tmp/gci
     - gospel check lib/report.mli -L /tmp/gci
 
+# ---- OCaml code coverage (bisect_ppx) — Linux/opam, manual ------------------
+# Instruments the library with bisect_ppx, runs the 72 behavioural checks + 12
+# QCheck properties under instrumentation, and generates an HTML coverage
+# report + Cobertura XML (bisect_ppx 2.8.x emits html/cobertura/coveralls/
+# summary; it dropped native LCOV output). The committed snapshot lives in
+# ocaml/coverage/ (regenerated locally as above); this job reproduces it in CI
+# and exposes the report as a downloadable artifact. allow_failure so an
+# opam/bisect env quirk never blocks the pipeline.
+ocaml-coverage:
+  stage: test
+  image: ocaml/opam:debian-12-ocaml-5.3
+  when: manual
+  allow_failure: true
+  before_script:
+    - opam install -y dune camlzip yojson re qcheck bisect_ppx
+  script:
+    - cd ocaml
+    - eval $(opam env)
+    - dune clean
+    - dune build --instrument-with bisect_ppx --force test/test.exe test/prop/prop.exe
+    - BISECT_FILE=$PWD/_build/cov dune exec --instrument-with bisect_ppx --force test/test.exe
+    - BISECT_FILE=$PWD/_build/cov dune exec --instrument-with bisect_ppx --force test/prop/prop.exe
+    - bisect-ppx-report summary --per-file _build/*.coverage
+    - bisect-ppx-report cobertura coverage.cobertura.xml _build/*.coverage
+    - bisect-ppx-report html _build/*.coverage -o coverage_html
+  artifacts:
+    paths:
+      - ocaml/coverage_html/
+      - ocaml/coverage.cobertura.xml
+    expire_in: 2 weeks
+
 # ---- OCaml deductive verification (Why3 + Z3) — manual, Linux --------------
 # Cameleer is not in the opam repository (no `cameleer` package), so instead of
 # cameleer's auto OCaml->WhyML translation we prove the contracts in a

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>mv.ml &mdash; Coverage report</title>
+    <meta name="description" content="65.31% coverage in lib/mv.ml">
+    <link rel="stylesheet" href="..\coverage.css"/>
+    <script src="..\highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <div id="header">
+      <h1>
+        <a href="..\index.html">
+          <span class="dirname">lib\</span>mv.ml
+        </a>
+      </h1>
+      <h2>65.31%</h2>
+    </div>
+    <div id="navbar">
+      <span class="some-visited" style="top:22.22%"></span>
+      <span class="some-visited" style="top:25.93%"></span>
+      <span class="unvisited" style="top:31.48%"></span>
+      <span class="unvisited" style="top:38.89%"></span>
+      <span class="unvisited" style="top:40.74%"></span>
+      <span class="some-visited" style="top:42.59%"></span>
+      <span class="unvisited" style="bottom:48.15%"></span>
+      <span class="unvisited" style="bottom:46.30%"></span>
+      <span class="unvisited" style="bottom:44.44%"></span>
+      <span class="unvisited" style="bottom:42.59%"></span>
+      <span class="unvisited" style="bottom:40.74%"></span>
+      <span class="some-visited" style="bottom:31.48%"></span>
+      <span class="some-visited" style="bottom:29.63%"></span>
+      <span class="unvisited" style="bottom:3.70%"></span>
+      <span class="unvisited" style="bottom:0.00%"></span>
+    </div>
+    <div id="report">
+      <div id="lines-layer">
+        <pre>
+<a id="L1"></a><span > </span>
+<a id="L2"></a><span > </span>
+<a id="L3"></a><span > </span>
+<a id="L4"></a><span > </span>
+<a id="L5"></a><span > </span>
+<a id="L6"></a><span > </span>
+<a id="L7"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span > </span>
+<a id="L10"></a><span > </span>
+<a id="L11"></a><span > </span>
+<a id="L12"></a><span class="some-visited"> </span>
+<a id="L13"></a><span class="visited"> </span>
+<a id="L14"></a><span class="some-visited"> </span>
+<a id="L15"></a><span class="visited"> </span>
+<a id="L16"></a><span class="visited"> </span>
+<a id="L17"></a><span class="unvisited"> </span>
+<a id="L18"></a><span class="visited"> </span>
+<a id="L19"></a><span class="visited"> </span>
+<a id="L20"></a><span class="visited"> </span>
+<a id="L21"></a><span class="unvisited"> </span>
+<a id="L22"></a><span class="unvisited"> </span>
+<a id="L23"></a><span class="some-visited"> </span>
+<a id="L24"></a><span class="visited"> </span>
+<a id="L25"></a><span > </span>
+<a id="L26"></a><span > </span>
+<a id="L27"></a><span class="visited"> </span>
+<a id="L28"></a><span class="unvisited"> </span>
+<a id="L29"></a><span class="unvisited"> </span>
+<a id="L30"></a><span class="unvisited"> </span>
+<a id="L31"></a><span class="unvisited"> </span>
+<a id="L32"></a><span class="unvisited"> </span>
+<a id="L33"></a><span > </span>
+<a id="L34"></a><span > </span>
+<a id="L35"></a><span > </span>
+<a id="L36"></a><span > </span>
+<a id="L37"></a><span class="some-visited"> </span>
+<a id="L38"></a><span class="some-visited"> </span>
+<a id="L39"></a><span > </span>
+<a id="L40"></a><span class="visited"> </span>
+<a id="L41"></a><span class="visited"> </span>
+<a id="L42"></a><span class="visited"> </span>
+<a id="L43"></a><span > </span>
+<a id="L44"></a><span class="visited"> </span>
+<a id="L45"></a><span class="visited"> </span>
+<a id="L46"></a><span class="visited"> </span>
+<a id="L47"></a><span > </span>
+<a id="L48"></a><span > </span>
+<a id="L49"></a><span > </span>
+<a id="L50"></a><span > </span>
+<a id="L51"></a><span class="visited"> </span>
+<a id="L52"></a><span class="unvisited"> </span>
+<a id="L53"></a><span class="visited"> </span>
+<a id="L54"></a><span class="unvisited"> </span>
+</pre>
+      </div>
+      <div id="text-layer">
+        <pre id="line-numbers">
+<a href="#L1"> 1</a>
+<a href="#L2"> 2</a>
+<a href="#L3"> 3</a>
+<a href="#L4"> 4</a>
+<a href="#L5"> 5</a>
+<a href="#L6"> 6</a>
+<a href="#L7"> 7</a>
+<a href="#L8"> 8</a>
+<a href="#L9"> 9</a>
+<a href="#L10">10</a>
+<a href="#L11">11</a>
+<a href="#L12">12</a>
+<a href="#L13">13</a>
+<a href="#L14">14</a>
+<a href="#L15">15</a>
+<a href="#L16">16</a>
+<a href="#L17">17</a>
+<a href="#L18">18</a>
+<a href="#L19">19</a>
+<a href="#L20">20</a>
+<a href="#L21">21</a>
+<a href="#L22">22</a>
+<a href="#L23">23</a>
+<a href="#L24">24</a>
+<a href="#L25">25</a>
+<a href="#L26">26</a>
+<a href="#L27">27</a>
+<a href="#L28">28</a>
+<a href="#L29">29</a>
+<a href="#L30">30</a>
+<a href="#L31">31</a>
+<a href="#L32">32</a>
+<a href="#L33">33</a>
+<a href="#L34">34</a>
+<a href="#L35">35</a>
+<a href="#L36">36</a>
+<a href="#L37">37</a>
+<a href="#L38">38</a>
+<a href="#L39">39</a>
+<a href="#L40">40</a>
+<a href="#L41">41</a>
+<a href="#L42">42</a>
+<a href="#L43">43</a>
+<a href="#L44">44</a>
+<a href="#L45">45</a>
+<a href="#L46">46</a>
+<a href="#L47">47</a>
+<a href="#L48">48</a>
+<a href="#L49">49</a>
+<a href="#L50">50</a>
+<a href="#L51">51</a>
+<a href="#L52">52</a>
+<a href="#L53">53</a>
+<a href="#L54">54</a>
+</pre>
+<pre><code class="ocaml">(* Source — MV/MZ individual-asset XOR decryption.
+   cipher[i] = plain[i] XOR key[i mod keyLength]; symmetric. *)
+
+type decrypt_outcome =
+  | Plaintext of string * bytes (* kind, bytes — already plaintext, identity *)
+  | Decrypted of string * bytes (* kind, bytes — XOR applied, magic found *)
+  | Unsure of bytes (* XOR applied but no plaintext magic *)
+
+type plaintext_kind = Png | Ogg | M4a | Webp | Jpg | Unknown
+
+let classify_plaintext (head : bytes) : plaintext_kind =
+  <span data-count="508">i</span>f Bytes.lengt<span data-count="508">h</span> head = 0 then <span data-count="0">U</span>nknown
+  else <span data-count="508">i</span>f Crypto.starts_with Crypto.magic_png head then <span data-count="7">P</span>ng
+  else <span data-count="501">i</span>f Crypto.starts_with Crypto.magic_ogg head then <span data-count="0">O</span>gg
+  else <span data-count="501">i</span>f
+    Bytes.lengt<span data-count="501">h</span> head &gt;= 8 &amp;&amp; <span data-count="500">C</span>rypto.sub_array_e<span data-count="500">q</span> 4 4 Crypto.magic_m4a head
+  then <span data-count="0">M</span>4a
+  else <span data-count="501">i</span>f
+    Bytes.lengt<span data-count="501">h</span> head &gt;= 12
+    &amp;&amp; <span data-count="496">C</span>rypto.starts_wit<span data-count="496">h</span> Crypto.magic_riff head
+    &amp;&amp; <span data-count="0">C</span>rypto.sub_array_e<span data-count="0">q</span> 8 4 Crypto.magic_webp head
+  then <span data-count="0">W</span>ebp
+  else <span data-count="501">i</span>f Crypto.starts_with Crypto.magic_jpg head then <span data-count="0">J</span>pg
+  else <span data-count="501">U</span>nknown
+
+let plaintext_kind_to_string = function
+  | <span data-count="7">P</span>ng -&gt; "png"
+  | <span data-count="0">O</span>gg -&gt; "ogg"
+  | <span data-count="0">M</span>4a -&gt; "m4a"
+  | <span data-count="0">W</span>ebp -&gt; "webp"
+  | <span data-count="0">J</span>pg -&gt; "jpg"
+  | <span data-count="0">U</span>nknown -&gt; "bin"
+
+(** Decrypt a buffer believed to be MV/MZ XOR-encrypted. Already-plaintext
+    buffers are returned untouched (identity copy). *)
+let decrypt (key : bytes) (cipher : bytes) : decrypt_outcome =
+  <span data-count="508">i</span>f Bytes.lengt<span data-count="508">h</span> key = 0 then <span data-count="0">i</span>nvalid_ar<span data-count="0">g</span> "MV key must not be empty";
+  <span data-count="508">i</span>f Bytes.lengt<span data-count="508">h</span> cipher = 0 then <span data-count="0">P</span>laintext ("bin", cipher)
+    (* empty -&gt; pass through *)
+  else <span data-count="508">i</span>f Crypto.looks_like_plaintext cipher then
+    <span data-count="1">P</span>laintext (plaintext_kind_to_strin<span data-count="1">g</span> (classify_plaintex<span data-count="1">t</span> cipher), cipher)
+  else <span data-count="507">b</span>egin
+    let plain = Crypto.xor_transform key cipher in
+    <span data-count="507">l</span>et k = classify_plaintext plain in
+    <span data-count="507">i</span>f k = Unknown then <span data-count="501">U</span>nsure plain
+    else <span data-count="6">D</span>ecrypted (plaintext_kind_to_strin<span data-count="6">g</span> k, plain)
+  end
+
+(** Centralised call so the Mv and Mz paths agree. *)
+let decrypt_bytes (key : bytes) (cipher : bytes) : bytes * string =
+  <span data-count="4">m</span>atch decrypt key cipher with
+  | <span data-count="0">P</span>laintext (kind, b) -&gt; (b, kind)
+  | <span data-count="4">D</span>ecrypted (kind, b) -&gt; (b, kind)
+  | <span data-count="0">U</span>nsure b -&gt; (b, "bin")
+</code></pre>
+      </div>
+    </div>
+    <script src="..\coverage.js"></script>
+  </body>
+</html>

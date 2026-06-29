@@ -1,6 +1,8 @@
 (library
  (name rpgm)
  (libraries zip yojson re unix)
+ (instrumentation
+  (backend bisect_ppx))
  (flags
   (:standard
    -w

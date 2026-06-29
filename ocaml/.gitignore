@@ -3,3 +3,5 @@ _build/
 *.merlin
 .merlin
 *.gospel
+*.coverage
+_build/cov*

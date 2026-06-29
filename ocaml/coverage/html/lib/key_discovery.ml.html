@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>key_discovery.ml &mdash; Coverage report</title>
+    <meta name="description" content="39.05% coverage in lib/key_discovery.ml">
+    <link rel="stylesheet" href="..\coverage.css"/>
+    <script src="..\highlight.pack.js"></script>
+    <script>hljs.initHighlightingOnLoad();</script>
+  </head>
+  <body>
+    <div id="header">
+      <h1>
+        <a href="..\index.html">
+          <span class="dirname">lib\</span>key_discovery.ml
+        </a>
+      </h1>
+      <h2>39.05%</h2>
+    </div>
+    <div id="navbar">
+      <span class="unvisited" style="top:11.22%"></span>
+      <span class="unvisited" style="top:11.71%"></span>
+      <span class="unvisited" style="top:12.20%"></span>
+      <span class="unvisited" style="top:14.15%"></span>
+      <span class="unvisited" style="top:18.05%"></span>
+      <span class="unvisited" style="top:19.02%"></span>
+      <span class="unvisited" style="top:19.51%"></span>
+      <span class="unvisited" style="top:20.49%"></span>
+      <span class="unvisited" style="top:20.98%"></span>
+      <span class="unvisited" style="top:22.44%"></span>
+      <span class="unvisited" style="top:22.93%"></span>
+      <span class="unvisited" style="top:23.90%"></span>
+      <span class="unvisited" style="top:24.39%"></span>
+      <span class="unvisited" style="top:24.88%"></span>
+      <span class="unvisited" style="top:25.37%"></span>
+      <span class="unvisited" style="top:26.34%"></span>
+      <span class="unvisited" style="top:26.83%"></span>
+      <span class="unvisited" style="top:27.32%"></span>
+      <span class="unvisited" style="top:28.29%"></span>
+      <span class="unvisited" style="top:29.27%"></span>
+      <span class="unvisited" style="top:29.76%"></span>
+      <span class="unvisited" style="top:30.24%"></span>
+      <span class="unvisited" style="top:30.73%"></span>
+      <span class="unvisited" style="top:31.22%"></span>
+      <span class="unvisited" style="top:32.20%"></span>
+      <span class="unvisited" style="top:34.15%"></span>
+      <span class="unvisited" style="top:34.63%"></span>
+      <span class="unvisited" style="top:35.12%"></span>
+      <span class="unvisited" style="top:35.61%"></span>
+      <span class="unvisited" style="top:36.10%"></span>
+      <span class="unvisited" style="top:36.59%"></span>
+      <span class="unvisited" style="top:38.54%"></span>
+      <span class="unvisited" style="top:39.02%"></span>
+      <span class="unvisited" style="top:39.51%"></span>
+      <span class="unvisited" style="top:40.00%"></span>
+      <span class="unvisited" style="top:40.49%"></span>
+      <span class="unvisited" style="top:40.98%"></span>
+      <span class="unvisited" style="top:41.46%"></span>
+      <span class="unvisited" style="top:41.95%"></span>
+      <span class="unvisited" style="top:42.44%"></span>
+      <span class="unvisited" style="top:49.27%"></span>
+      <span class="unvisited" style="bottom:49.76%"></span>
+      <span class="unvisited" style="bottom:49.27%"></span>
+      <span class="unvisited" style="bottom:48.29%"></span>
+      <span class="unvisited" style="bottom:47.80%"></span>
+      <span class="unvisited" style="bottom:47.32%"></span>
+      <span class="unvisited" style="bottom:46.83%"></span>
+      <span class="unvisited" style="bottom:46.34%"></span>
+      <span class="unvisited" style="bottom:43.41%"></span>
+      <span class="unvisited" style="bottom:42.93%"></span>
+      <span class="unvisited" style="bottom:42.44%"></span>
+      <span class="unvisited" style="bottom:41.95%"></span>
+      <span class="unvisited" style="bottom:41.46%"></span>
+      <span class="unvisited" style="bottom:40.98%"></span>
+      <span class="unvisited" style="bottom:40.00%"></span>
+      <span class="unvisited" style="bottom:39.51%"></span>
+      <span class="unvisited" style="bottom:39.02%"></span>
+      <span class="unvisited" style="bottom:38.54%"></span>
+      <span class="unvisited" style="bottom:38.05%"></span>
+      <span class="some-visited" style="bottom:34.63%"></span>
+      <span class="unvisited" style="bottom:34.15%"></span>
+      <span class="some-visited" style="bottom:33.17%"></span>
+      <span class="some-visited" style="bottom:30.73%"></span>
+      <span class="some-visited" style="bottom:26.34%"></span>
+      <span class="unvisited" style="bottom:25.85%"></span>
+      <span class="unvisited" style="bottom:25.37%"></span>
+      <span class="unvisited" style="bottom:23.90%"></span>
+      <span class="unvisited" style="bottom:23.41%"></span>
+      <span class="unvisited" style="bottom:22.93%"></span>
+      <span class="unvisited" style="bottom:21.95%"></span>
+      <span class="unvisited" style="bottom:21.46%"></span>
+      <span class="unvisited" style="bottom:11.22%"></span>
+      <span class="unvisited" style="bottom:8.29%"></span>
+      <span class="unvisited" style="bottom:0.98%"></span>
+    </div>
+    <div id="report">
+      <div id="lines-layer">
+        <pre>
+<a id="L1"></a><span > </span>
+<a id="L2"></a><span > </span>
+<a id="L3"></a><span > </span>
+<a id="L4"></a><span > </span>
+<a id="L5"></a><span > </span>
+<a id="L6"></a><span > </span>
+<a id="L7"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span > </span>
+<a id="L10"></a><span > </span>
+<a id="L11"></a><span class="visited"> </span>
+<a id="L12"></a><span > </span>
+<a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
+<a id="L15"></a><span class="visited"> </span>
+<a id="L16"></a><span > </span>
+<a id="L17"></a><span > </span>
+<a id="L18"></a><span class="visited"> </span>
+<a id="L19"></a><span > </span>
+<a id="L20"></a><span class="visited"> </span>
+<a id="L21"></a><span > </span>
+<a id="L22"></a><span class="visited"> </span>
+<a id="L23"></a><span class="unvisited"> </span>
+<a id="L24"></a><span class="unvisited"> </span>
+<a id="L25"></a><span class="unvisited"> </span>
+<a id="L26"></a><span > </span>
+<a id="L27"></a><span > </span>
+<a id="L28"></a><span class="visited"> </span>
+<a id="L29"></a><span class="unvisited"> </span>
+<a id="L30"></a><span > </span>
+<a id="L31"></a><span class="visited"> </span>
+<a id="L32"></a><span class="visited"> </span>
+<a id="L33"></a><span class="visited"> </span>
+<a id="L34"></a><span class="visited"> </span>
+<a id="L35"></a><span > </span>
+<a id="L36"></a><span class="visited"> </span>
+<a id="L37"></a><span class="unvisited"> </span>
+<a id="L38"></a><span > </span>
+<a id="L39"></a><span class="unvisited"> </span>
+<a id="L40"></a><span class="unvisited"> </span>
+<a id="L41"></a><span > </span>
+<a id="L42"></a><span class="unvisited"> </span>
+<a id="L43"></a><span class="unvisited"> </span>
+<a id="L44"></a><span > </span>
+<a id="L45"></a><span > </span>
+<a id="L46"></a><span class="unvisited"> </span>
+<a id="L47"></a><span class="unvisited"> </span>
+<a id="L48"></a><span > </span>
+<a id="L49"></a><span class="unvisited"> </span>
+<a id="L50"></a><span class="unvisited"> </span>
+<a id="L51"></a><span class="unvisited"> </span>
+<a id="L52"></a><span class="unvisited"> </span>
+<a id="L53"></a><span > </span>
+<a id="L54"></a><span class="unvisited"> </span>
+<a id="L55"></a><span class="unvisited"> </span>
+<a id="L56"></a><span class="unvisited"> </span>
+<a id="L57"></a><span > </span>
+<a id="L58"></a><span class="unvisited"> </span>
+<a id="L59"></a><span > </span>
+<a id="L60"></a><span class="unvisited"> </span>
+<a id="L61"></a><span class="unvisited"> </span>
+<a id="L62"></a><span class="unvisited"> </span>
+<a id="L63"></a><span class="unvisited"> </span>
+<a id="L64"></a><span class="unvisited"> </span>
+<a id="L65"></a><span > </span>
+<a id="L66"></a><span class="unvisited"> </span>
+<a id="L67"></a><span > </span>
+<a id="L68"></a><span > </span>
+<a id="L69"></a><span > </span>
+<a id="L70"></a><span class="unvisited"> </span>
+<a id="L71"></a><span class="unvisited"> </span>
+<a id="L72"></a><span class="unvisited"> </span>
+<a id="L73"></a><span class="unvisited"> </span>
+<a id="L74"></a><span class="unvisited"> </span>
+<a id="L75"></a><span class="unvisited"> </span>
+<a id="L76"></a><span > </span>
+<a id="L77"></a><span > </span>
+<a id="L78"></a><span > </span>
+<a id="L79"></a><span class="unvisited"> </span>
+<a id="L80"></a><span class="unvisited"> </span>
+<a id="L81"></a><span class="unvisited"> </span>
+<a id="L82"></a><span class="unvisited"> </span>
+<a id="L83"></a><span class="unvisited"> </span>
+<a id="L84"></a><span class="unvisited"> </span>
+<a id="L85"></a><span class="unvisited"> </span>
+<a id="L86"></a><span class="unvisited"> </span>
+<a id="L87"></a><span class="unvisited"> </span>
+<a id="L88"></a><span > </span>
+<a id="L89"></a><span > </span>
+<a id="L90"></a><span > </span>
+<a id="L91"></a><span > </span>
+<a id="L92"></a><span class="visited"> </span>
+<a id="L93"></a><span class="visited"> </span>
+<a id="L94"></a><span class="visited"> </span>
+<a id="L95"></a><span class="visited"> </span>
+<a id="L96"></a><span class="visited"> </span>
+<a id="L97"></a><span class="visited"> </span>
+<a id="L98"></a><span > </span>
+<a id="L99"></a><span class="visited"> </span>
+<a id="L100"></a><span class="visited"> </span>
+<a id="L101"></a><span class="unvisited"> </span>
+<a id="L102"></a><span > </span>
+<a id="L103"></a><span class="unvisited"> </span>
+<a id="L104"></a><span class="unvisited"> </span>
+<a id="L105"></a><span > </span>
+<a id="L106"></a><span class="unvisited"> </span>
+<a id="L107"></a><span class="unvisited"> </span>
+<a id="L108"></a><span class="unvisited"> </span>
+<a id="L109"></a><span class="unvisited"> </span>
+<a id="L110"></a><span class="unvisited"> </span>
+<a id="L111"></a><span > </span>
+<a id="L112"></a><span > </span>
+<a id="L113"></a><span > </span>
+<a id="L114"></a><span > </span>
+<a id="L115"></a><span > </span>
+<a id="L116"></a><span class="unvisited"> </span>
+<a id="L117"></a><span class="unvisited"> </span>
+<a id="L118"></a><span class="unvisited"> </span>
+<a id="L119"></a><span class="unvisited"> </span>
+<a id="L120"></a><span class="unvisited"> </span>
+<a id="L121"></a><span class="unvisited"> </span>
+<a id="L122"></a><span > </span>
+<a id="L123"></a><span class="unvisited"> </span>
+<a id="L124"></a><span class="unvisited"> </span>
+<a id="L125"></a><span class="unvisited"> </span>
+<a id="L126"></a><span class="unvisited"> </span>
+<a id="L127"></a><span class="unvisited"> </span>
+<a id="L128"></a><span > </span>
+<a id="L129"></a><span > </span>
+<a id="L130"></a><span > </span>
+<a id="L131"></a><span > </span>
+<a id="L132"></a><span class="visited"> </span>
+<a id="L133"></a><span > </span>
+<a id="L134"></a><span class="some-visited"> </span>
+<a id="L135"></a><span class="unvisited"> </span>
+<a id="L136"></a><span class="visited"> </span>
+<a id="L137"></a><span class="some-visited"> </span>
+<a id="L138"></a><span > </span>
+<a id="L139"></a><span > </span>
+<a id="L140"></a><span > </span>
+<a id="L141"></a><span class="visited"> </span>
+<a id="L142"></a><span class="some-visited"> </span>
+<a id="L143"></a><span class="visited"> </span>
+<a id="L144"></a><span > </span>
+<a id="L145"></a><span > </span>
+<a id="L146"></a><span class="visited"> </span>
+<a id="L147"></a><span class="visited"> </span>
+<a id="L148"></a><span > </span>
+<a id="L149"></a><span class="visited"> </span>
+<a id="L150"></a><span > </span>
+<a id="L151"></a><span class="some-visited"> </span>
+<a id="L152"></a><span class="unvisited"> </span>
+<a id="L153"></a><span class="unvisited"> </span>
+<a id="L154"></a><span > </span>
+<a id="L155"></a><span > </span>
+<a id="L156"></a><span class="unvisited"> </span>
+<a id="L157"></a><span class="unvisited"> </span>
+<a id="L158"></a><span class="unvisited"> </span>
+<a id="L159"></a><span > </span>
+<a id="L160"></a><span class="unvisited"> </span>
+<a id="L161"></a><span class="unvisited"> </span>
+<a id="L162"></a><span > </span>
+<a id="L163"></a><span > </span>
+<a id="L164"></a><span > </span>
+<a id="L165"></a><span > </span>
+<a id="L166"></a><span > </span>
+<a id="L167"></a><span class="visited"> </span>
+<a id="L168"></a><span class="visited"> </span>
+<a id="L169"></a><span > </span>
+<a id="L170"></a><span > </span>
+<a id="L171"></a><span > </span>
+<a id="L172"></a><span > </span>
+<a id="L173"></a><span class="visited"> </span>
+<a id="L174"></a><span > </span>
+<a id="L175"></a><span > </span>
+<a id="L176"></a><span > </span>
+<a id="L177"></a><span > </span>
+<a id="L178"></a><span > </span>
+<a id="L179"></a><span class="visited"> </span>
+<a id="L180"></a><span > </span>
+<a id="L181"></a><span class="visited"> </span>
+<a id="L182"></a><span class="unvisited"> </span>
+<a id="L183"></a><span class="visited"> </span>
+<a id="L184"></a><span > </span>
+<a id="L185"></a><span > </span>
+<a id="L186"></a><span > </span>
+<a id="L187"></a><span class="visited"> </span>
+<a id="L188"></a><span class="unvisited"> </span>
+<a id="L189"></a><span class="visited"> </span>
+<a id="L190"></a><span > </span>
+<a id="L191"></a><span class="visited"> </span>
+<a id="L192"></a><span class="visited"> </span>
+<a id="L193"></a><span > </span>
+<a id="L194"></a><span class="visited"> </span>
+<a id="L195"></a><span class="visited"> </span>
+<a id="L196"></a><span class="visited"> </span>
+<a id="L197"></a><span > </span>
+<a id="L198"></a><span > </span>
+<a id="L199"></a><span class="visited"> </span>
+<a id="L200"></a><span > </span>
+<a id="L201"></a><span > </span>
+<a id="L202"></a><span > </span>
+<a id="L203"></a><span class="unvisited"> </span>
+<a id="L204"></a><span > </span>
+<a id="L205"></a><span class="visited"> </span>
+</pre>
+      </div>
+      <div id="text-layer">
+        <pre id="line-numbers">
+<a href="#L1">  1</a>
+<a href="#L2">  2</a>
+<a href="#L3">  3</a>
+<a href="#L4">  4</a>
+<a href="#L5">  5</a>
+<a href="#L6">  6</a>
+<a href="#L7">  7</a>
+<a href="#L8">  8</a>
+<a href="#L9">  9</a>
+<a href="#L10"> 10</a>
+<a href="#L11"> 11</a>
+<a href="#L12"> 12</a>
+<a href="#L13"> 13</a>
+<a href="#L14"> 14</a>
+<a href="#L15"> 15</a>
+<a href="#L16"> 16</a>
+<a href="#L17"> 17</a>
+<a href="#L18"> 18</a>
+<a href="#L19"> 19</a>
+<a href="#L20"> 20</a>
+<a href="#L21"> 21</a>
+<a href="#L22"> 22</a>
+<a href="#L23"> 23</a>
+<a href="#L24"> 24</a>
+<a href="#L25"> 25</a>
+<a href="#L26"> 26</a>
+<a href="#L27"> 27</a>
+<a href="#L28"> 28</a>
+<a href="#L29"> 29</a>
+<a href="#L30"> 30</a>
+<a href="#L31"> 31</a>
+<a href="#L32"> 32</a>
+<a href="#L33"> 33</a>
+<a href="#L34"> 34</a>
+<a href="#L35"> 35</a>
+<a href="#L36"> 36</a>
+<a href="#L37"> 37</a>
+<a href="#L38"> 38</a>
+<a href="#L39"> 39</a>
+<a href="#L40"> 40</a>
+<a href="#L41"> 41</a>
+<a href="#L42"> 42</a>
+<a href="#L43"> 43</a>
+<a href="#L44"> 44</a>
+<a href="#L45"> 45</a>
+<a href="#L46"> 46</a>
+<a href="#L47"> 47</a>
+<a href="#L48"> 48</a>
+<a href="#L49"> 49</a>
+<a href="#L50"> 50</a>
+<a href="#L51"> 51</a>
+<a href="#L52"> 52</a>
+<a href="#L53"> 53</a>
+<a href="#L54"> 54</a>
+<a href="#L55"> 55</a>
+<a href="#L56"> 56</a>
+<a href="#L57"> 57</a>
+<a href="#L58"> 58</a>
+<a href="#L59"> 59</a>
+<a href="#L60"> 60</a>
+<a href="#L61"> 61</a>
+<a href="#L62"> 62</a>
+<a href="#L63"> 63</a>
+<a href="#L64"> 64</a>
+<a href="#L65"> 65</a>
+<a href="#L66"> 66</a>
+<a href="#L67"> 67</a>
+<a href="#L68"> 68</a>
+<a href="#L69"> 69</a>
+<a href="#L70"> 70</a>
+<a href="#L71"> 71</a>
+<a href="#L72"> 72</a>
+<a href="#L73"> 73</a>
+<a href="#L74"> 74</a>
+<a href="#L75"> 75</a>
+<a href="#L76"> 76</a>
+<a href="#L77"> 77</a>
+<a href="#L78"> 78</a>
+<a href="#L79"> 79</a>
+<a href="#L80"> 80</a>
+<a href="#L81"> 81</a>
+<a href="#L82"> 82</a>
+<a href="#L83"> 83</a>
+<a href="#L84"> 84</a>
+<a href="#L85"> 85</a>
+<a href="#L86"> 86</a>
+<a href="#L87"> 87</a>
+<a href="#L88"> 88</a>
+<a href="#L89"> 89</a>
+<a href="#L90"> 90</a>
+<a href="#L91"> 91</a>
+<a href="#L92"> 92</a>
+<a href="#L93"> 93</a>
+<a href="#L94"> 94</a>
+<a href="#L95"> 95</a>
+<a href="#L96"> 96</a>
+<a href="#L97"> 97</a>
+<a href="#L98"> 98</a>
+<a href="#L99"> 99</a>
+<a href="#L100">100</a>
+<a href="#L101">101</a>
+<a href="#L102">102</a>
+<a href="#L103">103</a>
+<a href="#L104">104</a>
+<a href="#L105">105</a>
+<a href="#L106">106</a>
+<a href="#L107">107</a>
+<a href="#L108">108</a>
+<a href="#L109">109</a>
+<a href="#L110">110</a>
+<a href="#L111">111</a>
+<a href="#L112">112</a>
+<a href="#L113">113</a>
+<a href="#L114">114</a>
+<a href="#L115">115</a>
+<a href="#L116">116</a>
+<a href="#L117">117</a>
+<a href="#L118">118</a>
+<a href="#L119">119</a>
+<a href="#L120">120</a>
+<a href="#L121">121</a>
+<a href="#L122">122</a>
+<a href="#L123">123</a>
+<a href="#L124">124</a>
+<a href="#L125">125</a>
+<a href="#L126">126</a>
+<a href="#L127">127</a>
+<a href="#L128">128</a>
+<a href="#L129">129</a>
+<a href="#L130">130</a>
+<a href="#L131">131</a>
+<a href="#L132">132</a>
+<a href="#L133">133</a>
+<a href="#L134">134</a>
+<a href="#L135">135</a>
+<a href="#L136">136</a>
+<a href="#L137">137</a>
+<a href="#L138">138</a>
+<a href="#L139">139</a>
+<a href="#L140">140</a>
+<a href="#L141">141</a>
+<a href="#L142">142</a>
+<a href="#L143">143</a>
+<a href="#L144">144</a>
+<a href="#L145">145</a>
+<a href="#L146">146</a>
+<a href="#L147">147</a>
+<a href="#L148">148</a>
+<a href="#L149">149</a>
+<a href="#L150">150</a>
+<a href="#L151">151</a>
+<a href="#L152">152</a>
+<a href="#L153">153</a>
+<a href="#L154">154</a>
+<a href="#L155">155</a>
+<a href="#L156">156</a>
+<a href="#L157">157</a>
+<a href="#L158">158</a>
+<a href="#L159">159</a>
+<a href="#L160">160</a>
+<a href="#L161">161</a>
+<a href="#L162">162</a>
+<a href="#L163">163</a>
+<a href="#L164">164</a>
+<a href="#L165">165</a>
+<a href="#L166">166</a>
+<a href="#L167">167</a>
+<a href="#L168">168</a>
+<a href="#L169">169</a>
+<a href="#L170">170</a>
+<a href="#L171">171</a>
+<a href="#L172">172</a>
+<a href="#L173">173</a>
+<a href="#L174">174</a>
+<a href="#L175">175</a>
+<a href="#L176">176</a>
+<a href="#L177">177</a>
+<a href="#L178">178</a>
+<a href="#L179">179</a>
+<a href="#L180">180</a>
+<a href="#L181">181</a>
+<a href="#L182">182</a>
+<a href="#L183">183</a>
+<a href="#L184">184</a>
+<a href="#L185">185</a>
+<a href="#L186">186</a>
+<a href="#L187">187</a>
+<a href="#L188">188</a>
+<a href="#L189">189</a>
+<a href="#L190">190</a>
+<a href="#L191">191</a>
+<a href="#L192">192</a>
+<a href="#L193">193</a>
+<a href="#L194">194</a>
+<a href="#L195">195</a>
+<a href="#L196">196</a>
+<a href="#L197">197</a>
+<a href="#L198">198</a>
+<a href="#L199">199</a>
+<a href="#L200">200</a>
+<a href="#L201">201</a>
+<a href="#L202">202</a>
+<a href="#L203">203</a>
+<a href="#L204">204</a>
+<a href="#L205">205</a>
+</pre>
+<pre><code class="ocaml">(* Find the MV/MZ key without user input, plus wordlist validation against a
+   real cipher. Uses yojson (System.json) and re (rpg_core.js literal scan).
+   We never evaluate JavaScript. *)
+
+type key_result = Found of bytes * string | NotFound of string
+
+(* ---- regexes for the key literal scan -------------------------------- *)
+let re1 =
+  Re.Pcre.re ~flags:[ `CASELESS ]
+    {|Decrypter\._encryptionKey\s*=\s*\["\\x"\s*,\s*"([0-9a-fA-F]{32})"|}
+  |&gt; <span data-count="1">R</span>e.compil<span data-count="1">e</span>
+
+let re2 =
+  Re.Pcre.re ~flags:[ `CASELESS ] {|encryptionKey\s*=\s*"([0-9a-fA-F]{32})"|}
+  |&gt; <span data-count="1">R</span>e.compil<span data-count="1">e</span>
+
+let try_read_json_key (json_text : string) : string option =
+  <span data-count="1">t</span>ry
+    match Yojson.Safe.from_string json_text with
+    | <span data-count="1">`</span>Assoc fields -&gt; (
+        match List.assoc_opt "encryptionKey" fields with
+        | <span data-count="1">S</span>ome (`String v) -&gt; Some v
+        | <span data-count="0">_</span> -&gt; None)
+    | <span data-count="0">_</span> -&gt; None
+  with <span data-count="0">_</span> -&gt; None
+
+let try_system_json (path : string) : key_result =
+  <span data-count="1">i</span>f not (Sys.file_exist<span data-count="1">s</span> path) then
+    <span data-count="0">N</span>otFound (Printf.sprint<span data-count="0">f</span> "no System.json at %s" path)
+  else
+    <span data-count="1">t</span>ry
+      let txt = Bytes.to_string (Io.read_fil<span data-count="1">e</span> path) in
+      <span data-count="1">m</span>atch try_read_json_key txt with
+      | <span data-count="1">S</span>ome hex -&gt;
+          Found
+            (Crypto.decode_hex_ke<span data-count="1">y</span> hex, Printf.sprint<span data-count="1">f</span> "System.json (%s)" path)
+      | <span data-count="0">N</span>one -&gt;
+          NotFound
+            (Printf.sprint<span data-count="0">f</span> "System.json at %s has no .encryptionKey" path)
+    with <span data-count="0">e</span> -&gt;
+      NotFound
+        (Printf.sprint<span data-count="0">f</span> "System.json read/parse error: %s"
+           (Printexc.to_strin<span data-count="0">g</span> e))
+
+let try_js_scan (path : string) : key_result =
+  <span data-count="0">i</span>f not (Sys.file_exist<span data-count="0">s</span> path) then
+    <span data-count="0">N</span>otFound (Printf.sprint<span data-count="0">f</span> "no file at %s" path)
+  else
+    <span data-count="0">t</span>ry
+      let txt = Bytes.to_string (Io.read_fil<span data-count="0">e</span> path) in
+      <span data-count="0">m</span>atch Re.exec_opt re1 txt with
+      | <span data-count="0">S</span>ome g -&gt;
+          Found
+            ( Crypto.decode_hex_ke<span data-count="0">y</span> (Re.Group.ge<span data-count="0">t</span> g 1),
+              Printf.sprint<span data-count="0">f</span> "regex match in %s" path )
+      | <span data-count="0">N</span>one -&gt; (
+          match Re.exec_opt re2 txt with
+          | <span data-count="0">S</span>ome g -&gt;
+              Found
+                ( Crypto.decode_hex_ke<span data-count="0">y</span> (Re.Group.ge<span data-count="0">t</span> g 1),
+                  Printf.sprint<span data-count="0">f</span> "regex match (encryptionKey=) in %s" path )
+          | <span data-count="0">N</span>one -&gt; NotFound (Printf.sprint<span data-count="0">f</span> "no hex key literal in %s" path))
+    with <span data-count="0">e</span> -&gt;
+      NotFound (Printf.sprint<span data-count="0">f</span> "js scan error: %s" (Printexc.to_strin<span data-count="0">g</span> e))
+
+let is_found = function <span data-count="0">F</span>ound _ -&gt; true | <span data-count="0">_</span> -&gt; false
+
+(* *.js directly in [dir] (one level). *)
+let js_in_dir (dir : string) : string list =
+  <span data-count="0">i</span>f Sys.file_exist<span data-count="0">s</span> dir &amp;&amp; <span data-count="0">t</span>ry Sys.is_director<span data-count="0">y</span> dir with <span data-count="0">_</span> -&gt; false then
+    <span data-count="0">S</span>ys.readdir dir |&gt; <span data-count="0">A</span>rray.to_list
+    |&gt; <span data-count="0">L</span>ist.filter (fun n -&gt;
+        <span data-count="0">F</span>ilename.check_suffix (String.lowercase_asci<span data-count="0">i</span> n) ".js")
+    |&gt; <span data-count="0">L</span>ist.map (Filename.conca<span data-count="0">t</span> dir)
+  else <span data-count="0">[</span>]
+
+(* *.js anywhere under [dir]. *)
+let rec js_recursive (dir : string) : string list =
+  <span data-count="0">i</span>f Sys.file_exist<span data-count="0">s</span> dir &amp;&amp; <span data-count="0">t</span>ry Sys.is_director<span data-count="0">y</span> dir with <span data-count="0">_</span> -&gt; false then
+    <span data-count="0">S</span>ys.readdir dir |&gt; <span data-count="0">A</span>rray.to_list
+    |&gt; <span data-count="0">L</span>ist.concat_map (fun n -&gt;
+        <span data-count="0">l</span>et p = Filename.concat dir n in
+        <span data-count="0">i</span>f try Sys.is_director<span data-count="0">y</span> p with <span data-count="0">_</span> -&gt; false then <span data-count="0">j</span>s_recursive p
+        else <span data-count="0">i</span>f Filename.check_suffix (String.lowercase_asci<span data-count="0">i</span> n) ".js" then
+          <span data-count="0">[</span> p ]
+        else <span data-count="0">[</span>])
+  else <span data-count="0">[</span>]
+
+(** Full priority order: www/js/System.json -&gt; www/data/System.json -&gt;
+    www/js/rpg_core.js -&gt; sweep www/js -&gt; sweep all of www. *)
+let discover (game_dir : string) : key_result =
+  <span data-count="1">l</span>et www_root = Filename.concat game_dir "www" in
+  <span data-count="1">l</span>et www_js = Filename.concat www_root "js" in
+  <span data-count="1">l</span>et www_js_system = Filename.concat www_js "System.json" in
+  <span data-count="1">l</span>et www_rpg_core = Filename.concat www_js "rpg_core.js" in
+  <span data-count="1">l</span>et www_data_sys =
+    Filename.concat (Filename.conca<span data-count="1">t</span> www_root "data") "System.json"
+  in
+  <span data-count="1">m</span>atch try_system_json www_js_system with
+  | <span data-count="1">F</span>ound _ as r -&gt; r
+  | <span data-count="0">N</span>otFound _ -&gt; (
+      match try_system_json www_data_sys with
+      | <span data-count="0">F</span>ound _ as r -&gt; r
+      | <span data-count="0">N</span>otFound _ -&gt; (
+          match try_js_scan www_rpg_core with
+          | <span data-count="0">F</span>ound _ as r -&gt; r
+          | <span data-count="0">N</span>otFound _ -&gt;
+              if not (Sys.file_exist<span data-count="0">s</span> www_root) then
+                <span data-count="0">N</span>otFound "no www/ directory in game_dir"
+              else <span data-count="0">b</span>egin
+                let found =
+                  ref (NotFound "no encryption key found in www/js or www/data")
+                in
+                List.iter
+                  (fun f -&gt;
+                    <span data-count="0">m</span>atch try_js_scan f with
+                    | <span data-count="0">F</span>ound _ as r -&gt; found := r
+                    | <span data-count="0">N</span>otFound _ -&gt; ())
+                  (js_in_di<span data-count="0">r</span> www_js);
+                <span data-count="0">i</span>f not (is_foun<span data-count="0">d</span> !found) then
+                  <span data-count="0">L</span>ist.ite<span data-count="0">r</span>
+                    (fun f -&gt;
+                      <span data-count="0">m</span>atch try_js_scan f with
+                      | <span data-count="0">F</span>ound _ as r -&gt; found := r
+                      | <span data-count="0">N</span>otFound _ -&gt; ())
+                    (js_recursiv<span data-count="0">e</span> www_root);
+                <span data-count="0">!</span>found
+              end))
+
+(* First reasonable encrypted asset to validate a candidate key against. *)
+let first_encrypted_sample (game_dir : string) : bytes option =
+  <span data-count="1">l</span>et exts = [ ".png_"; ".ogg_"; ".m4a_"; ".rpgmvp"; ".rpgmvo"; ".rpgmvm" ] in
+  let rec find_in dir =
+    <span data-count="1">i</span>f not (Sys.file_exist<span data-count="1">s</span> dir &amp;&amp; <span data-count="1">t</span>ry Sys.is_director<span data-count="1">y</span> dir with <span data-count="0">_</span> -&gt; false)
+    then <span data-count="0">N</span>one
+    else <span data-count="1">b</span>egin
+      let names = try Array.to_lis<span data-count="1">t</span> (Sys.readdi<span data-count="1">r</span> dir) with <span data-count="0">_</span> -&gt; [] in
+      let here =
+        List.filter
+          (fun n -&gt;
+            <span data-count="1">l</span>et p = Filename.concat dir n in
+            <span data-count="1">(</span>try not (Sys.is_director<span data-count="1">y</span> p) with <span data-count="0">_</span> -&gt; false)
+            &amp;&amp; <span data-count="1">L</span>ist.mem (String.lowercase_asci<span data-count="1">i</span> (Filename.extensio<span data-count="1">n</span> p)) exts)
+          names
+      in
+      <span data-count="1">m</span>atch here with
+      | <span data-count="1">n</span> :: _ -&gt; (
+          let p = Filename.concat dir n in
+          <span data-count="1">t</span>ry
+            let raw = Io.read_file p in
+            <span data-count="1">i</span>f Bytes.lengt<span data-count="1">h</span> raw &gt;= 16 then <span data-count="1">S</span>ome (Bytes.su<span data-count="1">b</span> raw 0 16) else <span data-count="0">N</span>one
+          with <span data-count="0">_</span> -&gt; None)
+      | <span data-count="0">[</span>] -&gt;
+          List.fold_left
+            (fun acc n -&gt;
+              <span data-count="0">m</span>atch acc with
+              | <span data-count="0">S</span>ome _ -&gt; acc
+              | <span data-count="0">N</span>one -&gt;
+                  let p = Filename.concat dir n in
+                  <span data-count="0">i</span>f try Sys.is_director<span data-count="0">y</span> p with <span data-count="0">_</span> -&gt; false then <span data-count="0">f</span>ind_in p
+                  else <span data-count="0">N</span>one)
+            None names
+    end
+  in
+  let candidates =
+    [
+      Filename.conca<span data-count="1">t</span> (Filename.conca<span data-count="1">t</span> game_dir "www") "img";
+      Filename.conca<span data-count="1">t</span> (Filename.conca<span data-count="1">t</span> game_dir "www") "audio";
+      game_dir;
+    ]
+  in
+  List.fold_left
+    (fun acc d -&gt; <span data-count="3">m</span>atch acc with <span data-count="2">S</span>ome _ -&gt; acc | <span data-count="1">N</span>one -&gt; find_in d)
+    None candidates
+
+(** Try each 32-char hex candidate against the first encrypted asset. *)
+let discover_with_wordlist (game_dir : string) (wordlist : string array) :
+    key_result =
+  <span data-count="2">i</span>f Array.lengt<span data-count="2">h</span> wordlist = 0 then <span data-count="1">N</span>otFound "wordlist is empty"
+  else
+    <span data-count="1">m</span>atch first_encrypted_sample game_dir with
+    | <span data-count="0">N</span>one -&gt; NotFound "no encrypted asset to validate wordlist against"
+    | <span data-count="1">S</span>ome sample -&gt;
+        let answer = ref (NotFound "no candidate in wordlist matched") in
+        Array.iter
+          (fun raw -&gt;
+            <span data-count="2">m</span>atch !answer with
+            | <span data-count="0">F</span>ound _ -&gt; ()
+            | <span data-count="2">_</span> -&gt; (
+                let trimmed = String.trim raw in
+                <span data-count="2">i</span>f String.lengt<span data-count="2">h</span> trimmed = 32 then
+                  <span data-count="2">t</span>ry
+                    let k = Crypto.decode_hex_key trimmed in
+                    <span data-count="2">l</span>et t = Crypto.xor_transform k sample in
+                    <span data-count="2">i</span>f Crypto.looks_like_plaintext t then
+                      <span data-count="1">a</span>nswer :=
+                        Found
+                          ( k,
+                            Printf.sprint<span data-count="1">f</span>
+                              "--password-file candidate '%s' (validated \
+                               against cipher sample)"
+                              trimmed )
+                  with <span data-count="0">_</span> -&gt; ()))
+          wordlist;
+        <span data-count="1">!</span>answer
+</code></pre>
+      </div>
+    </div>
+    <script src="..\coverage.js"></script>
+  </body>
+</html>
