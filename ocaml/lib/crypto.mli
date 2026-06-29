@@ -17,6 +17,7 @@ val magic_ogg : bytes
 val magic_m4a : bytes
 val magic_riff : bytes
 val magic_webp : bytes
+
 val magic_jpg : bytes
 (** File-signature prefixes used by plaintext detection. *)
 
@@ -50,7 +51,8 @@ val hex_nibble : char -> int
 val decode_hex_key : string -> bytes
 (** [decode_hex_key hex] lowercases, trims and decodes [hex] into a 16-byte key.
 
-    @raise Invalid_argument unless [hex] (after trim) is exactly 32 hex chars. *)
+    @raise Invalid_argument unless [hex] (after trim) is exactly 32 hex chars.
+*)
 
 (** {1 XOR transform} *)
 
@@ -66,6 +68,7 @@ val xor_transform : bytes -> bytes -> bytes
 val is_mv_magic_header : bytes -> bool
 val is_mz_magic_header : bytes -> bool
 val is_rgssad_magic : bytes -> bool
+
 val is_zip_magic : bytes -> bool
 (** [is_*_magic head] tests whether [head] begins with the corresponding format
     magic (RPGMV, RPGMZ, RGSSAD\000, or a ZIP local-file header [PK\x03\x04]).

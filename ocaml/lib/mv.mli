@@ -4,12 +4,14 @@
     Already-plaintext assets are returned untouched. *)
 
 type decrypt_outcome =
-  | Plaintext of string * bytes  (** (kind, bytes) — input was already plaintext *)
-  | Decrypted of string * bytes  (** (kind, bytes) — XOR applied, magic recovered *)
+  | Plaintext of string * bytes
+      (** (kind, bytes) — input was already plaintext *)
+  | Decrypted of string * bytes
+      (** (kind, bytes) — XOR applied, magic recovered *)
   | Unsure of bytes  (** XOR applied but no recognised magic *)
 
-(** Outcome of {!decrypt}. [kind] is one of ["png"], ["ogg"], ["m4a"],
-    ["webp"], ["jpg"], ["bin"]. *)
+(** Outcome of {!decrypt}. [kind] is one of ["png"], ["ogg"], ["m4a"], ["webp"],
+    ["jpg"], ["bin"]. *)
 
 val decrypt : bytes -> bytes -> decrypt_outcome
 (** [decrypt key cipher] classifies and (if needed) XOR-decrypts [cipher].

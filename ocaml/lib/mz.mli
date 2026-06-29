@@ -1,6 +1,6 @@
-(** RPG Maker MZ {.pak} extraction.
+(** RPG Maker MZ [.pak] extraction.
 
-    A {.pak} is a plain ZIP whose entries are individually MV-XOR-encrypted;
+    A [.pak] is a plain ZIP whose entries are individually MV-XOR-encrypted;
     this module opens it with camlzip and decrypts each entry. *)
 
 type entry_result = {
@@ -8,10 +8,12 @@ type entry_result = {
   plaintext_kind : string;
   bytes : bytes;
 }
-(** One decrypted {.pak} entry. *)
+(** One decrypted [.pak] entry. *)
 
-type open_error = NotAZipFile | BadHeader of string | IOFailure of string
-(** Failure modes for {!open_pak}. *)
+type open_error =
+  | NotAZipFile
+  | BadHeader of string
+  | IOFailure of string  (** Failure modes for {!open_pak}. *)
 
 val open_pak : string -> (Zip.in_file, open_error) result
 (** [open_pak path] verifies the ZIP magic then opens [path] as a camlzip

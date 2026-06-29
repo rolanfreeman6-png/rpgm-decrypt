@@ -9,15 +9,14 @@ val classify : string -> Types.format option
     RPG Maker file. Returns [None] (never raises) when the file is missing or
     unreadable. *)
 
-val decrypt_single :
-  bytes -> string -> (bytes * string * bool, string) result
+val decrypt_single : bytes -> string -> (bytes * string * bool, string) result
 (** [decrypt_single key abs_path] decrypts one MV/MZ asset at [abs_path].
     Returns [Ok (bytes, kind, was_decrypted)] — [was_decrypted] is [false] when
     the input was already plaintext. [Error msg] on I/O failure. *)
 
 val decrypt_archive :
   bytes -> string -> ((string * bytes * string) list, string) result
-(** [decrypt_archive key abs_path] decrypts a packed MZ {.pak} at [abs_path],
+(** [decrypt_archive key abs_path] decrypts a packed MZ [.pak] at [abs_path],
     returning a list of [(name, bytes, kind)] tuples. [Error msg] on open or
     decrypt failure. *)
 
