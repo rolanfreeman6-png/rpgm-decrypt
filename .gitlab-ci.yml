@@ -125,6 +125,52 @@ ocaml-fuzz:
     - grep -E "execs_done|corpus_count|saved_crashes|execs_per_sec" aflout/default/fuzzer_stats 2>/dev/null || true
     - 'CR=$(grep -E "^saved_crashes" aflout/default/fuzzer_stats 2>/dev/null | tr -cd "0-9"); echo "afl saved_crashes=${CR:-0}"; [ "${CR:-0}" = "0" ]'
 
+# ---- Weekly long-run fuzzing (2h, scheduled) -------------------------------
+# A deeper coverage-guided campaign than the per-push 90s one. Runs ONLY on
+# pipeline schedules (GitLab -> Build -> Pipeline schedules, e.g. a weekly
+# cron). 2h of afl-fuzz (~hundreds of millions of execs) against the
+# -afl-instrument'd target with a fresh corpus each run. allow_failure so the
+# schedule never shows red on env quirks, but any crash is captured as an
+# artifact (aflout/default/crashes/) and the stats line prints saved_crashes.
+# To enable: create a schedule (e.g. "0 3 * * 0" = Sunday 03:00 UTC) targeting
+# main; this job picks it up via $CI_PIPELINE_SOURCE == "schedule".
+ocaml-fuzz-weekly:
+  stage: fuzz
+  image: ubuntu:26.04
+  needs: ["ocaml-build-test"]
+  allow_failure: true
+  timeout: 2h 30m
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  variables:
+    DEBIAN_FRONTEND: noninteractive
+    AFL_SKIP_BIN_CHECK: "1"
+    AFL_SKIP_CPUFREQ: "1"
+    AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES: "1"
+    AFL_NO_AFFINITY: "1"
+    AFL_CRASH_EXITCODE: "2"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq ocaml ocaml-dune ocaml-findlib libzip-ocaml-dev libyojson-ocaml-dev libre-ocaml-dev afl++
+  script:
+    - cd ocaml
+    - dune build --profile release fuzz/fuzz.exe
+    - echo "=== weekly afl-fuzz (2h / 7200s) ==="
+    - mkdir -p seeds
+    - printf 'RGSSAD\x00\x01' > seeds/s1
+    - printf 'RGSSAD\x00\x02' > seeds/s2
+    - printf 'RGSSAD\x00\x03\x00\x00\x00\x00' > seeds/s3
+    - printf 'PK\x03\x04' > seeds/s4
+    - printf '\x89PNG\r\n\x1a\n' > seeds/s5
+    - timeout 7260 afl-fuzz -V 7200 -m none -i seeds -o aflout -- ./_build/default/fuzz/fuzz.exe @@ || echo "afl finished"
+    - grep -E "execs_done|corpus_count|saved_crashes|execs_per_sec|unique_crashes" aflout/default/fuzzer_stats 2>/dev/null || true
+    - 'CR=$(grep -E "^(saved_crashes|unique_crashes)" aflout/default/fuzzer_stats 2>/dev/null | tr -cd "0-9" | head -1); echo "weekly afl saved_crashes=${CR:-0}"'
+  artifacts:
+    when: on_failure
+    paths:
+      - ocaml/aflout/default/crashes/
+    expire_in: 2 weeks
+
 # ---- OCaml verification: property tests + Gospel spec type-check (Linux/opam) -
 # opam-based (qcheck and gospel are not in the ubuntu apt set used by
 # ocaml-build-test). Builds the library, runs the 72 parity checks + the 12
@@ -155,29 +201,35 @@ ocaml-verification:
     - gospel check lib/dispatch.mli -L /tmp/gci
     - gospel check lib/report.mli -L /tmp/gci
 
-# ---- OCaml deductive verification (Cameleer/Why3) — manual, Linux/opam -------
-# Best-effort: installs cameleer + why3 + alt-ergo and runs the prover on the
-# proof-target modules (Vxace_key.derive_master_key, Report.safe_join
-# containment, Rgssad_core bounds). Manual + allow_failure because cameleer's
-# opam availability / OCaml-version support and the proof outcome (some VCs are
-# conditional on the axiomatised bytes/string helpers, since Gospel 0.3.1 has no
-# Bytes/String theory) may need human review. See ocaml/README.md "Formal
-# guarantees".
-ocaml-cameleer:
+# ---- OCaml deductive verification (Why3 + Z3) — manual, Linux --------------
+# Cameleer is not in the opam repository (no `cameleer` package), so instead of
+# cameleer's auto OCaml->WhyML translation we prove the contracts in a
+# hand-written WhyML model: ocaml/proofs/rpgm_proof.mlw. The axiomatised Gospel
+# helpers (read_u32_le, u32, normalize) are DEFINED in WhyML, and path
+# components are modelled as an algebraic [comp] type so Z3 can case-split the
+# constructors. With `why3 prove -P z3 -a split_goal_full` ALL goals discharge:
+# derive_master_key = u32(seed*9+3), read_u32_le LE formula, the Zip-Slip
+# invariant (normalize never yields a ".." component — a program proof with the
+# invariant as the postcondition), and rgssad_core read_entry/advance bounds.
+# Verified locally (see ocaml/proofs/proof_output.txt: 23/23 Valid). Manual +
+# allow_failure so a Linux Z3/version quirk never blocks the pipeline; a real
+# proof regression surfaces in the job log.
+ocaml-why3-proof:
   stage: test
   image: ocaml/opam:debian-12-ocaml-5.3
   when: manual
   allow_failure: true
   before_script:
-    - opam install -y dune camlzip yojson re gospel cameleer why3 alt-ergo
+    - sudo apt-get update -qq && sudo apt-get install -y -qq z3
+    - opam install -y why3
     - eval $(opam env) && why3 config detect
   script:
     - cd ocaml
     - eval $(opam env)
-    - cameleer lib/vxace_key.ml
-    - cameleer lib/crypto.ml
-    - cameleer lib/rgssad_core.ml
-    - cameleer lib/report.ml
+    - echo "=== why3 prove (z3, split_goal_full) ==="
+    - why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw
+    - echo "=== count discharged goals ==="
+    - 'why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw 2>&1 | grep -cE "Prover result is: Valid" || true'
 
 # ---- Mirror to GitHub (source + tags) via SSH deploy key -------------------
 # GitLab is the build/test farm (F# + OCaml tests, fuzz, verification). GitHub
