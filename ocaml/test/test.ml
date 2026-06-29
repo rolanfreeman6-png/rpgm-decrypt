@@ -146,7 +146,14 @@ let test_xp_vx () =
   set_u32le bad 16 0xFFFFFFFA;
   (* name_len high-bit *)
   check "vx high-bit name_len -> Truncated"
-    (match Vx.parse bad with Error Rgssad_core.Truncated -> true | _ -> false)
+    (match Vx.parse bad with Error Rgssad_core.Truncated -> true | _ -> false);
+  (* read_u32_le must decode all four bytes; a value > 255 exercises bytes 1..3.
+     Mutation coverage: a byte1/byte2 shift mutation survives if only small
+     (< 256) values are tested. *)
+  let b32 = Bytes.make 4 '\000' in
+  set_u32le b32 0 0x12345678;
+  check "rgssad read_u32_le 0x12345678"
+    (Rgssad_core.read_u32_le b32 0 = 0x12345678)
 
 (* ---- VX Ace ---------------------------------------------------------- *)
 let test_vxace () =
@@ -328,7 +335,13 @@ let test_crypto_more () =
   check "chooseExt webp kind"
     (Dispatch.choose_output_extension ".png_" "webp" = ".webp");
   check "chooseExt unknown"
-    (Dispatch.choose_output_extension ".xyz" "bin" = ".bin")
+    (Dispatch.choose_output_extension ".xyz" "bin" = ".bin");
+  check "chooseExt ogg kind"
+    (Dispatch.choose_output_extension ".ogg_" "ogg" = ".ogg");
+  check "chooseExt m4a kind"
+    (Dispatch.choose_output_extension ".m4a_" "m4a" = ".m4a");
+  check "chooseExt jpg kind"
+    (Dispatch.choose_output_extension ".jpg" "jpg" = ".jpg")
 
 (* ---- Dispatch.classify (extension + magic) --------------------------- *)
 let test_classify () =
