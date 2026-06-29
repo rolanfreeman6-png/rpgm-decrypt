@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="55%" r="65%">
+      <stop offset="0%" stop-color="#000"/>
+      <stop offset="55%" stop-color="#05060a"/>
+      <stop offset="100%" stop-color="#0a0d18"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="52%" r="32%">
+      <stop offset="0%" stop-color="#ff8a3d" stop-opacity="0.85"/>
+      <stop offset="55%" stop-color="#8a5cff" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#6e8bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#8a5cff"/>
+      <stop offset="50%" stop-color="#ffd27a"/>
+      <stop offset="100%" stop-color="#ff8a3d"/>
+    </linearGradient>
+    <filter id="soft" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="800" cy="470" r="340" fill="url(#glow)"/>
+  <g filter="url(#soft)">
+    <ellipse cx="800" cy="470" rx="320" ry="60" fill="none" stroke="url(#ring)" stroke-width="3" opacity="0.85"/>
+    <ellipse cx="800" cy="470" rx="240" ry="44" fill="none" stroke="url(#ring)" stroke-width="2" opacity="0.55"/>
+  </g>
+  <circle cx="800" cy="470" r="92" fill="#000"/>
+</svg>

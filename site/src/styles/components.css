@@ -1,0 +1,281 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Component-level utilities. Mostly thin wrappers + layout primitives used by
+ * several components. Heavy lifting lives next to the component that owns it.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── containers ────────────────────────────────────────────────────────────── */
+.container {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+  max-width: var(--container-wide);
+}
+
+.container-narrow {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+  max-width: var(--container-narrow);
+}
+
+.container-full {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: var(--space-5);
+  max-width: var(--container-full);
+}
+
+/* ── sections ──────────────────────────────────────────────────────────────── */
+.section {
+  padding-block: var(--space-9);
+  position: relative;
+}
+
+.section-lg {
+  padding-block: var(--space-11);
+}
+
+/* ── eyebrow / overline ────────────────────────────────────────────────────── */
+.eyebrow {
+  display: inline-block;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-block: var(--space-2);
+  position: relative;
+}
+
+.eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 24px;
+  height: 1px;
+  vertical-align: middle;
+  margin-right: var(--space-3);
+  background: var(--gradient-accent);
+  opacity: 0.7;
+}
+
+/* ── button ────────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-base);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  background: color-mix(in srgb, var(--void-elevated) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--void-edge) 80%, transparent);
+  border-radius: var(--radius-md);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+  position: relative;
+  isolation: isolate;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--lensing) 40%, transparent);
+  background: color-mix(in srgb, var(--void-elevated) 95%, transparent);
+}
+
+.btn-primary {
+  color: var(--text-strong);
+  background: var(--gradient-accent);
+  border-color: transparent;
+  box-shadow: var(--glow-accent);
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accretion-1) 60%, transparent),
+    0 18px 50px -10px color-mix(in srgb, var(--violet) 55%, transparent);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--void-edge) 60%, transparent);
+}
+
+.btn-lg {
+  padding: var(--space-4) var(--space-6);
+  font-size: var(--text-md);
+}
+
+/* ── hairline border via gradient (subtle premium signature) ──────────────── */
+.hairline {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--void-elevated), var(--void-elevated)) padding-box,
+    var(--gradient-border) border-box;
+  border-radius: var(--radius-md);
+}
+
+/* ── chip / badge ──────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  font-size: var(--text-xs);
+  letter-spacing: 0.02em;
+  font-weight: 500;
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--void-elevated) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--void-edge) 80%, transparent);
+}
+
+.chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gradient-accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accretion-1) 70%, transparent);
+}
+
+.chip-released {
+  color: color-mix(in srgb, var(--accretion-1) 90%, var(--text));
+}
+
+.chip-coming {
+  color: var(--muted);
+}
+
+.chip-coming .chip-dot {
+  background: var(--muted-2);
+  box-shadow: none;
+}
+
+/* ── card (used by ProductCard) ───────────────────────────────────────────── */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--void-elevated) 90%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-soft);
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.card::before {
+  /* gradient edge accent — only on hover */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--gradient-border);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+  z-index: -1;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lift);
+}
+
+.card:hover::before {
+  opacity: 1;
+}
+
+/* ── scroll-reveal initial state is hidden; JS toggles `is-revealed` ─────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--duration-slow) var(--ease-out),
+    transform var(--duration-slow) var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+
+.reveal.is-revealed {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* ── hairline divider ──────────────────────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--gradient-border);
+  opacity: 0.4;
+  border: 0;
+  margin-block: var(--space-7);
+}
+
+/* markdown body styles (used by ProductDescription) */
+.markdown {
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+}
+
+.markdown > * + * {
+  margin-top: var(--space-4);
+}
+
+.markdown strong {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+.markdown em {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.markdown code {
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--void-edge) 60%, transparent);
+  border-radius: var(--radius-sm);
+  font-size: 0.92em;
+  color: color-mix(in srgb, var(--accretion-1) 80%, var(--text));
+}
+
+.markdown a {
+  color: var(--text-strong);
+  border-bottom: 1px solid color-mix(in srgb, var(--lensing) 50%, transparent);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.markdown a:hover {
+  border-color: var(--accretion-1);
+}
+
+/* ── generic prose helper for hero copy ───────────────────────────────────── */
+.lead {
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--muted);
+  max-width: 60ch;
+}

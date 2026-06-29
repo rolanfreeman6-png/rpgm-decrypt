@@ -1,0 +1,209 @@
+---
+/**
+ * VideoHero — fullscreen product hero. Behind a blurred/blacked layer is
+ * either a looping muted video or the static poster. A title and tagline
+ * sit on top, plus a scroll-down chevron.
+ *
+ * Honors:
+ *   • prefers-reduced-motion → poster-only, no video.
+ *   • visibilitychange → pause/resume the video element.
+ *   • If demoVideo is empty or fails to load → poster fallback.
+ */
+interface Props {
+  videoSrc?: string;
+  posterSrc: string;
+  title: string;
+  tagline?: string;
+}
+const { videoSrc = '', posterSrc, title, tagline } = Astro.props;
+
+const hasVideo = !!videoSrc;
+---
+<section
+  class="video-hero"
+  data-video-hero
+  data-has-video={hasVideo ? 'true' : 'false'}
+  aria-label={`${title} — hero`}
+>
+  <div class="video-hero__media" aria-hidden="true">
+    {hasVideo ? (
+      <video
+        class="video-hero__video"
+        src={videoSrc}
+        poster={posterSrc}
+        muted
+        loop
+        playsinline
+        autoplay
+        preload="metadata"
+        data-video
+      ></video>
+    ) : (
+      <img
+        class="video-hero__poster"
+        src={posterSrc}
+        alt=""
+        width="1600"
+        height="900"
+        loading="eager"
+        decoding="async"
+        fetchpriority="high"
+      />
+    )}
+    <div class="video-hero__overlay"></div>
+    <div class="video-hero__grain" aria-hidden="true"></div>
+  </div>
+
+  <div class="video-hero__content container-full">
+    <span class="eyebrow" data-reveal>Product</span>
+    <h1 class="video-hero__title" data-reveal data-reveal-delay="80">{title}</h1>
+    {tagline && <p class="video-hero__tagline lead" data-reveal data-reveal-delay="160">{tagline}</p>}
+  </div>
+
+  <a class="video-hero__chevron" href="#content" aria-label="Scroll to product content">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+</section>
+
+<style>
+  .video-hero {
+    position: relative;
+    height: 100vh;
+    min-height: 600px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    isolation: isolate;
+  }
+  .video-hero__media {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: var(--void-elevated);
+  }
+  .video-hero__video,
+  .video-hero__poster {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter:
+      blur(28px)
+      brightness(0.55)
+      saturate(120%)
+      contrast(105%);
+    transform: scale(1.12);  /* edges stay covered under blur */
+    transform-origin: center;
+    will-change: opacity;
+    opacity: 0;
+    transition: opacity var(--duration-stage) var(--ease-out);
+  }
+  /* JS toggles .is-ready once metadata has loaded to give a clean fade-in */
+  .video-hero__video.is-ready,
+  .video-hero__poster.is-ready { opacity: 1; }
+
+  .video-hero__overlay {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(60% 50% at 50% 60%, transparent 0%, rgba(5, 6, 10, 0.55) 60%, rgba(5, 6, 10, 0.9) 100%);
+  }
+  .video-hero__grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+  .video-hero__content {
+    position: relative;
+    z-index: 2;
+    text-align: center;
+    margin-inline: auto;
+  }
+  .video-hero__title {
+    font-size: var(--text-5xl);
+    letter-spacing: var(--tracking-tighter);
+    font-weight: 700;
+    background: linear-gradient(180deg, var(--text-strong) 0%, color-mix(in srgb, var(--text-strong) 75%, transparent) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-block: var(--space-3) var(--space-4);
+  }
+  .video-hero__tagline {
+    margin-inline: auto;
+    color: var(--muted);
+  }
+
+  .video-hero__chevron {
+    position: absolute;
+    left: 50%;
+    bottom: var(--space-7);
+    transform: translateX(-50%);
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--void-elevated) 60%, transparent);
+    border: 1px solid color-mix(in srgb, var(--void-edge) 60%, transparent);
+    transition:
+      color var(--duration-fast) var(--ease-out),
+      border-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-base) var(--ease-out);
+  }
+  .video-hero__chevron:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accretion-1) 50%, transparent);
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  @media (max-width: 720px) {
+    .video-hero__title { font-size: var(--text-3xl); }
+  }
+</style>
+
+<script>
+  /* Wire up the video element — pause on tab hidden, fade in on metadata ready. */
+  const section = document.querySelector<HTMLElement>('[data-video-hero]');
+  if (section) {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const video = section.querySelector<HTMLVideoElement>('[data-video]');
+
+    if (video) {
+      // If user prefers reduced motion, ditch the video and show the poster frame.
+      if (reduced) {
+        video.removeAttribute('autoplay');
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
+        // The <video> poster attribute still renders via the browser.
+        video.classList.add('is-ready');
+      } else {
+        const reveal = (): void => video.classList.add('is-ready');
+        if (video.readyState >= 1) reveal();          // metadata already loaded
+        else video.addEventListener('loadedmetadata', reveal, { once: true });
+        // Some browsers fire `error` if the src is broken — fall back to poster.
+        video.addEventListener('error', reveal, { once: true });
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) video.pause();
+        else if (!reduced && !video.error) video.play().catch(() => { /* autoplay blocked - fine */ });
+      });
+    } else {
+      // No video element — fade in the poster image once it has decoded.
+      const poster = section.querySelector<HTMLImageElement>('img');
+      if (poster) {
+        if (poster.complete) poster.classList.add('is-ready');
+        else poster.addEventListener('load', () => poster.classList.add('is-ready'), { once: true });
+      }
+    }
+  }
+</script>

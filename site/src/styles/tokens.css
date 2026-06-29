@@ -1,0 +1,131 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+ * Design tokens. Single source of truth — change a value here, the whole site
+ * shifts. Keep names human-readable: any customer-side edit should not require
+ * touching logic.
+ *
+ *   • Colors:    layered dark background + a single accent gradient.
+ *   • Spacing:   8-pt base grid (multiples of 0.5rem).
+ *   • Type:      modular scale, tight tracking on headings.
+ *   • Motion:    slow, soft easing; reduced-motion collapses to instant.
+ *   • Radii:     three levels — sharp / soft / pill.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── palette (singularity / black hole) ───────────────────────────────────── */
+  --void: #05060a;                /* base canvas */
+  --void-elevated: #0a0d18;       /* card / nav background */
+  --void-edge: #121626;           /* hairline borders source */
+  --event-horizon: #000;          /* pure black, used sparingly */
+
+  --accretion-1: #ff8a3d;         /* warm orange — anchor of accent */
+  --accretion-2: #ffd27a;         /* warm gold — bridge */
+  --lensing: #6e8bff;             /* cool blue — depth */
+  --violet: #8a5cff;              /* brand violet —
+
+ gradient terminus */
+
+  --text: #e8eaf0;                /* primary copy */
+  --text-strong: #ffffff;         /* max contrast, used in titles */
+  --muted: #9aa0b4;               /* secondary copy */
+  --muted-2: #6a7088;             /* tertiary copy / disabled */
+
+  /* single accent gradient — used on ≤5% of any screen, never as background */
+  --gradient-accent: linear-gradient(
+    120deg,
+    var(--accretion-1) 0%,
+    var(--violet) 100%
+  );
+  --gradient-accent-soft: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accretion-1) 70%, transparent),
+    color-mix(in srgb, var(--violet) 60%, transparent)
+  );
+  --gradient-border: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accretion-1) 30%, transparent),
+    color-mix(in srgb, var(--lensing) 25%, transparent)
+  );
+
+  /* ── spacing (8-pt grid; —0.5rem to 12rem for layout density) ────────────── */
+  --space-0: 0;
+  --space-1: 0.25rem;   /*  4 px — tight */
+  --space-2: 0.5rem;    /*  8 px — base half */
+  --space-3: 0.75rem;   /* 12 px */
+  --space-4: 1rem;      /* 16 px */
+  --space-5: 1.5rem;    /* 24 px */
+  --space-6: 2rem;      /* 32 px */
+  --space-7: 3rem;      /* 48 px */
+  --space-8: 4rem;      /* 64 px — section break */
+  --space-9: 6rem;      /* 96 px */
+  --space-10: 8rem;     /* 128 px — hero */
+  --space-11: 12rem;    /* 192 px — first-screen air */
+
+  /* ── type scale (modular, base 1rem = 16 px, ratio ~1.25) ────────────────── */
+  --text-xs:   0.75rem;    /* 12 px */
+  --text-sm:   0.875rem;   /* 14 px */
+  --text-base: 1rem;       /* 16 px */
+  --text-md:   1.125rem;   /* 18 px */
+  --text-lg:   1.375rem;   /* 22 px */
+  --text-xl:   1.75rem;    /* 28 px */
+  --text-2xl:  2.25rem;    /* 36 px */
+  --text-3xl:  3rem;       /* 48 px */
+  --text-4xl:  4rem;       /* 64 px */
+  --text-5xl:  5.5rem;     /* 88 px — hero title */
+
+  --leading-tight:   1.05;
+  --leading-snug:    1.25;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.7;
+
+  --tracking-tighter: -0.035em;  /* large display */
+  --tracking-tight:   -0.022em;  /* h1 / h2 */
+  --tracking-normal:  -0.01em;   /* h3 / h4 */
+  --tracking-wide:    0.04em;    /* overline only */
+
+  --font-sans: 'Inter Variable', 'Inter', system-ui, -apple-system, BlinkMacSystemFont,
+               'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, Menlo,
+               Consolas, monospace;
+
+  /* ── radii (3 levels, consistent) ────────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius-md:   12px;
+  --radius-lg:   20px;
+  --radius-pill: 9999px;
+
+  /* ── elevation (very soft — premium not plastic) ─────────────────────────── */
+  --shadow-soft: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+                 0 8px 24px -10px rgba(0, 0, 0, 0.5);
+  --shadow-lift: 0 1px 0 0 rgba(255, 255, 255, 0.05) inset,
+                 0 18px 40px -16px rgba(0, 0, 0, 0.6);
+  --glow-accent: 0 0 0 1px color-mix(in srgb, var(--accretion-1) 35%, transparent),
+                 0 14px 40px -10px color-mix(in srgb, var(--violet) 45%, transparent);
+
+  /* ── motion ──────────────────────────────────────────────────────────────── */
+  --ease-out:       cubic-bezier(0.16, 1, 0.3, 1);   /* primary ease — Linear-ish */
+  --ease-in-out:    cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast:  180ms;
+  --duration-base:  320ms;
+  --duration-slow:  520ms;
+  --duration-stage: 760ms;        /* hero entrance */
+
+  /* ── layout ──────────────────────────────────────────────────────────────── */
+  --container-narrow: 720px;      /* reading width */
+  --container-wide:   1180px;     /* header / catalog */
+  --container-full:   1480px;     /* hero edges */
+
+  /* ── z-index ─────────────────────────────────────────────────────────────── */
+  --z-nav:    50;
+  --z-modal:  80;
+  --z-toast:  90;
+}
+
+/* ── user "reduce motion" overrides duration/easing globally ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+      --duration-fast:  1ms;
+    --duration-base:  1ms;
+    --duration-slow:  1ms;
+    --duration-stage: 1ms;
+  }
+}

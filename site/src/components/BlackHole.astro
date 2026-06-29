@@ -1,0 +1,227 @@
+---
+/**
+ * BlackHole — animated hero background for the home page only.
+ * Implements: starfield + rotating accretion-disc particles + central void.
+ * Stops when the tab is hidden, and respects prefers-reduced-motion.
+ *
+ * Implementation notes:
+ *   • Canvas 2D, no WebGL / no three.js — single file, single frame loop.
+ *   • Particles are pre-baked in a deterministic ring with a tiny tangential
+ *     jitter; they stay in place visually but the *whole ring* rotates with
+ *     one slow angular velocity, plus a small radial breathing.
+ *   • Stars are static positions with a per-star phase; their brightness is
+ *     driven by sin(t + phase) and clamped to ≥0.18 for ambient visibility.
+ *   • DPR-aware: backing store scaled by window.devicePixelRatio (capped at 2).
+ */
+---
+<div class="blackhole" aria-hidden="true">
+  <canvas class="blackhole__canvas" data-blackhole></canvas>
+  <div class="blackhole__vignette"></div>
+</div>
+
+<style>
+  .blackhole {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .blackhole__canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* The canvas paints its own dark layers; this keeps the host transparent
+       but receives the layered radial bodies via composition. */
+    background:
+      radial-gradient(120% 80% at 50% 55%, #000 0%, var(--void) 60%, transparent 100%);
+  }
+  .blackhole__vignette {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(60% 35% at 50% 50%, transparent 30%, rgba(0,0,0,0.55) 100%);
+    mix-blend-mode: multiply;
+  }
+</style>
+
+<script>
+  /* ─── blackhole canvas loop ───────────────────────────────────────────── */
+  type Particle = { r: number; theta: number; jitter: number; size: number; hue: number };
+  type Star     = { x: number; y: number; r: number; phase: number };
+
+  const canvasEl = document.querySelector<HTMLCanvasElement>('[data-blackhole]');
+  if (canvasEl) {
+    const ctx2d = canvasEl.getContext('2d');
+    if (ctx2d) {
+      const canvas = canvasEl;
+      const ctx = ctx2d;
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      let width = 0;
+      let height = 0;
+      let dpr = Math.min(window.devicePixelRatio || 1, 2);
+      let particles: Particle[] = [];
+      let stars: Star[] = [];
+
+      // visual tuning — single point of edit if you want denser / sparser hero
+      const STAR_COUNT = 220;
+      const PARTICLE_COUNT = 110;
+      const DISK_INNER = 0.10;   // fraction of min(canvas-side)
+      const DISK_OUTER = 0.28;
+
+      function resize(): void {
+        const rect = canvas.getBoundingClientRect();
+        width = Math.max(1, Math.floor(rect.width));
+        height = Math.max(1, Math.floor(rect.height));
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(width * dpr);
+        canvas.height = Math.floor(height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        seed();
+      }
+
+      // Deterministic pseudo-random so the first frame looks the same on every load.
+      let seedState = 1234567;
+      function rand(): number {
+        // xorshift32 — fast, no deps
+        seedState ^= seedState << 13;
+        seedState ^= seedState >>> 17;
+        seedState ^= seedState << 5;
+        return ((seedState >>> 0) % 1_000_000) / 1_000_000;
+      }
+
+      function seed(): void {
+        particles = [];
+        stars = [];
+        const radius = Math.min(width, height) * 0.34;
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          // sample radius in annulus [inner, outer] with sqrt for area-uniformity
+          const t = Math.sqrt(rand());
+          const r = radius * (DISK_INNER + (DISK_OUTER - DISK_INNER) * t);
+          const theta = rand() * Math.PI * 2;
+          // particles closer to the inside are warmer (accretion glow)
+          const hue = 20 + (1 - t) * 32 + (rand() - 0.5) * 6; // 14..52 deg
+          particles.push({
+            r,
+            theta,
+            jitter: rand() * Math.PI * 2,
+            size: 0.6 + (1 - t) * 1.6 + rand() * 0.6,
+            hue,
+          });
+        }
+
+        for (let i = 0; i < STAR_COUNT; i++) {
+          stars.push({
+            x: rand() * width,
+            y: rand() * height,
+            r: 0.2 + rand() * 0.9,
+            phase: rand() * Math.PI * 2,
+          });
+        }
+      }
+
+      let t = 0; // accumulated animation time in seconds
+      let last = performance.now();
+
+      function draw(now: number): void {
+        const dt = Math.min(0.05, (now - last) / 1000); // clamp to 50ms to absorb tab-switch skew
+        last = now;
+        t += dt;
+        render();
+      }
+
+      function render(): void {
+        const cx = width / 2;
+        const cy = height / 2;
+        const radius = Math.min(width, height) * 0.34;
+
+        ctx.clearRect(0, 0, width, height);
+
+        // ── stars ────────────────────────────────────────────────────
+        for (const s of stars) {
+          const tw = 0.55 + 0.45 * Math.sin(t * 1.4 + s.phase);
+          ctx.globalAlpha = Math.max(0.18, tw);
+          ctx.fillStyle = '#cdd3e3';
+          ctx.beginPath();
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+
+        // ── accretion ring (drawn as a soft gradient + particles) ────
+        // soft halo behind particles
+        const halo = ctx.createRadialGradient(cx, cy, radius * DISK_INNER * 0.6, cx, cy, radius * DISK_OUTER * 1.4);
+        halo.addColorStop(0, 'rgba(255, 138, 61, 0.0)');
+        halo.addColorStop(0.45, 'rgba(255, 138, 61, 0.20)');
+        halo.addColorStop(0.65, 'rgba(138, 92, 255, 0.18)');
+        halo.addColorStop(1, 'rgba(110, 139, 255, 0.0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * DISK_OUTER * 1.4, 0, Math.PI * 2);
+        ctx.fill();
+
+        // ── particles ────────────────────────────────────────────────
+        // very slow rotation (~ one revolution per 90s)
+        const angVel = (Math.PI * 2) / 90;
+        const ringAngle = t * angVel;
+        for (const p of particles) {
+          const angle = p.theta + ringAngle + Math.sin(t * 0.6 + p.jitter) * 0.03;
+          const x = cx + Math.cos(angle) * p.r;
+          const y = cy + Math.sin(angle) * p.r * 0.36; // squish vertically for "disk" feel
+          ctx.fillStyle = `hsla(${p.hue}, 92%, 70%, 0.95)`;
+          ctx.beginPath();
+          ctx.arc(x, y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // ── event horizon ────────────────────────────────────────────
+        const horizon = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * DISK_INNER * 0.9);
+        horizon.addColorStop(0, '#000');
+        horizon.addColorStop(0.7, 'rgba(0,0,0,0.96)');
+        horizon.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = horizon;
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * DISK_INNER * 0.9, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // pause when tab is hidden — saves CPU and avoids huge dt on resume
+      let running = !reduced;
+      let rafId = 0;
+      function loop(now: number): void {
+        draw(now);
+        if (running) rafId = requestAnimationFrame(loop);
+      }
+
+      function start(): void {
+        if (rafId) return;
+        last = performance.now();
+        running = true;
+        rafId = requestAnimationFrame(loop);
+      }
+      function stop(): void {
+        running = false;
+        if (rafId) cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+
+      // wire up
+      resize();
+      const ro = new ResizeObserver(resize);
+      ro.observe(canvas);
+
+      if (reduced) {
+        render(); // single static frame
+      } else {
+        start();
+      }
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stop();
+        else if (!reduced) start();
+      });
+    }
+  }
+</script>
