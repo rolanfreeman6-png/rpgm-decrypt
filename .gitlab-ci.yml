@@ -1,63 +1,28 @@
 # GitLab CI for rpgm-decrypt.
 #
-# Mirrors the GitHub Actions build+test gate. Linux coverage runs on the free
-# gitlab.com Docker runners (.NET 10 SDK image). Windows coverage runs on the
-# GitLab SaaS Windows runners (tag saas-windows-medium-amd64): the F# product
-# is built+tested automatically there; the OCaml port is a manual job (opam on
-# Windows is a slow build, so it stays opt-in to spare trial CI minutes).
-# macOS coverage stays on GitHub Actions / local runs.
-#
-# TreatWarningsAsErrors is enforced both by fsharp/src/Directory.Build.props and the
-# explicit -p: flag below, matching the GitHub `test` job.
+# The OCaml flagship is built + tested here on every push (Linux apt toolchain,
+# plus a manual Windows opam job), then fuzzed and formally verified. GitLab is
+# the build/test farm; GitHub is the clean distribution channel: `github-mirror`
+# pushes the tested ref over SSH, and a `v*` tag triggers the GitHub Actions
+# release workflow that builds the static-musl flagship binary.
 
-# GitLab-managed security scanners (Ultimate). SAST analyses the source,
-# Secret Detection scans history for leaked credentials, Dependency Scanning
-# checks NuGet packages for known CVEs. Results land in Security & Compliance →
-# Vulnerability report. Each template defines its own job in the `test` stage.
+# GitLab-managed security scanners (Ultimate). SAST analyses the source, Secret
+# Detection scans history for leaked credentials. Results land in Security &
+# Compliance → Vulnerability report. Each template defines its own job in the
+# `test` stage.
 include:
   - template: Jobs/SAST.gitlab-ci.yml
   - template: Jobs/Secret-Detection.gitlab-ci.yml
-  - template: Jobs/Dependency-Scanning.gitlab-ci.yml
 
 stages:
   - test
   - fuzz
   - publish
 
-variables:
-  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
-  DOTNET_NOLOGO: "1"
-
-default:
-  image: mcr.microsoft.com/dotnet/sdk:10.0
-
-build-test:
-  stage: test
-  script:
-    - dotnet restore fsharp/src/RpgmDecrypt.slnx
-    - dotnet build fsharp/src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
-    - dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release --no-build
-
-# ---- F# build + test on the GitLab SaaS Windows runner --------------------
-# Windows coverage for the actually-shipped decryptor. .NET 10 is too new to be
-# preinstalled on the SaaS image, so we fetch it via the official install script.
-build-test-windows:
-  stage: test
-  tags:
-    - saas-windows-medium-amd64
-  before_script:
-    - Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile 'dotnet-install.ps1'
-    - .\dotnet-install.ps1 -Channel 10.0 -InstallDir "$env:USERPROFILE\.dotnet"
-    - $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
-  script:
-    - dotnet restore fsharp/src/RpgmDecrypt.slnx
-    - dotnet build fsharp/src/RpgmDecrypt.slnx -c Release --no-restore -p:TreatWarningsAsErrors=true
-    - dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release --no-build
-
-# ---- OCaml port build + parity tests on Windows (opam) --------------------
+# ---- OCaml port build + behavioural tests on Windows (opam) --------------------
 # opam on Windows bootstraps its own Cygwin + builds the compiler, which is slow
 # and consumes scarce trial Windows minutes, so this is opt-in (when: manual)
-# and never blocks the pipeline (allow_failure). Native parity on Windows is
+# and never blocks the pipeline (allow_failure). Native behavioural on Windows is
 # also verified on the local dev box; this job is the CI mirror of that.
 ocaml-build-test-windows:
   stage: test
@@ -70,14 +35,14 @@ ocaml-build-test-windows:
     - opam init --auto-setup --yes --disable-sandboxing
     - opam install --yes dune camlzip yojson re ocamlformat
   script:
-    # Same qcheck exclusion as the Linux apt job: build only bin + parity test.
+    # Same qcheck exclusion as the Linux apt job: build only bin + behavioural test.
     # opam here installs no qcheck; the property suite runs in ocaml-verification.
     - cd ocaml
     - opam exec -- dune build --profile release bin/main.exe test/test.exe
     - opam exec -- dune build @fmt   # format gate (ocamlformat 0.29.0)
     - opam exec -- dune exec --profile release test/test.exe
 
-# ---- OCaml port (ocaml/) — build + parity tests on a Linux OCaml toolchain --
+# ---- OCaml port (ocaml/) — build + behavioural tests on a Linux OCaml toolchain --
 ocaml-build-test:
   stage: test
   image: ubuntu:26.04
@@ -179,7 +144,7 @@ ocaml-fuzz-weekly:
 
 # ---- OCaml verification: property tests + Gospel spec type-check (Linux/opam) -
 # opam-based (qcheck and gospel are not in the ubuntu apt set used by
-# ocaml-build-test). Builds the library, runs the 72 parity checks + the 12
+# ocaml-build-test). Builds the library, runs the 72 behavioural checks + the 12
 # QCheck2 properties, then `gospel check` on every spec'd .mli. On Linux gospel
 # exits 0 cleanly (the Windows/mingw `output_value` marshal bug does not occur).
 # allow_failure so opam-env quirks never block the pipeline; a real spec or
@@ -238,30 +203,28 @@ ocaml-why3-proof:
     - 'why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw 2>&1 | grep -cE "Prover result is: Valid" || true'
 
 # ---- Mirror to GitHub (source + tags) via SSH deploy key -------------------
-# GitLab is the build/test farm (F# + OCaml tests, fuzz, verification). GitHub
-# is the clean distribution channel. This job mirrors the tested ref to GitHub
+# GitLab is the build/test farm (OCaml tests, fuzz, verification). GitHub is
+# the clean distribution channel. This job mirrors the tested ref to GitHub
 # over SSH using a deploy key (NO PAT needed): a push to main mirrors main; a
 # tag push mirrors the tag, which TRIGGERS the GitHub Actions release workflow
-# (.github/workflows/ci.yml) that builds the OCaml static flagship + F# binaries
-# and creates the GitHub Release with the auto-provided GITHUB_TOKEN.
+# (.github/workflows/ci.yml) that builds the OCaml static flagship and creates
+# the GitHub Release with the auto-provided GITHUB_TOKEN.
 #
-# Runs only after the hard Linux gates (F# build-test, OCaml parity) are green.
-# The Windows F# gate (build-test-windows) and the allow_failure jobs
-# (ocaml-fuzz, ocaml-verification, ocaml-build-test-windows) run alongside but
-# do not block the mirror, so SaaS-Windows availability or afl/opam env quirks
-# never stall shipping. The GitHub Actions release re-runs the full suite as its
-# own gate before publishing.
+# Runs only after the hard Linux gate (OCaml build + behavioural) is green. The
+# allow_failure jobs (ocaml-fuzz, ocaml-verification, ocaml-build-test-windows)
+# run alongside but do not block the mirror, so afl/opam env quirks never stall
+# shipping. The GitHub Actions release re-runs the build + behavioural as its own
+# gate before publishing.
 #
 # Required CI/CD variable (GitLab -> Settings -> CI/CD -> Variables):
 #   GH_SSH_PRIVATE_KEY  the SSH PRIVATE key matching the GitHub deploy key on
-#                       rolanfreeman6-png/rpgm-decrypt (added via `gh`). Masked
-#                       + protected; mark `main` protected so the variable
-#                       reaches this job. Without it the job fails fast.
+#                       rolanfreeman6-png/rpgm-decrypt. Masked + protected; mark
+#                       `main` protected so the variable reaches this job.
+#                       Without it the job fails fast.
 github-mirror:
   stage: publish
   image: alpine:3.20
   needs:
-    - job: build-test
     - job: ocaml-build-test
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/

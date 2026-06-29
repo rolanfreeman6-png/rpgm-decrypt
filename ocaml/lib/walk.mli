@@ -1,7 +1,6 @@
 (** Recursive directory walker yielding detected files.
 
-    Port of the F# [Walk] module. The F# [walkWithProgress] helper was dead code
-    and is not ported. *)
+    Walks the game directory and returns the detected files. *)
 
 val walk : string -> Types.detected_file list
 (** [walk root_dir] recursively lists files under [root_dir] whose extension is

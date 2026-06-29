@@ -1,6 +1,6 @@
 (** Human and NDJSON logging sinks to stderr.
 
-    Port of the F# [Log] module. *)
+    Logs go to stderr only. *)
 
 type format =
   | Human

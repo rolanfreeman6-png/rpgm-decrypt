@@ -1,5 +1,5 @@
-(* In-process test runner for the OCaml port — mirrors the key F# tests so we
-   can confirm behavioural parity. *)
+(* In-process test runner: 72 behavioural checks over crypto, parsers, MZ,
+   end-to-end Report.run, safe_join, and read_u32_le. *)
 
 open Rpgm
 

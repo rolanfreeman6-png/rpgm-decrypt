@@ -1,6 +1,6 @@
-(* Source — MZ `.pak` extraction. The `.pak` is a plain ZIP;
-   each entry's payload is individually MV-XOR-encrypted. Uses camlzip (`Zip`).
-   F# read the file into a MemoryStream; camlzip reads from the path directly. *)
+(* MZ `.pak` extraction. The `.pak` is a plain ZIP; each entry's payload is
+   individually MV-XOR-encrypted. Uses camlzip (`Zip`), reading from the path
+   directly. *)
 
 type entry_result = {
   entry_name : string;
@@ -10,7 +10,7 @@ type entry_result = {
 
 type open_error = NotAZipFile | BadHeader of string | IOFailure of string
 
-(** Open a `.pak` as a ZIP archive (checking the PK magic first, as F# did). *)
+(** Open a `.pak` as a ZIP archive (checking the PK magic first). *)
 let open_pak (path : string) : (Zip.in_file, open_error) result =
   try
     let b = Io.read_file path in

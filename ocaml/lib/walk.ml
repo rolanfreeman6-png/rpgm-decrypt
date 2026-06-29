@@ -1,5 +1,4 @@
-(* Source — recursive directory walker yielding detected_file records.
-   (walkWithProgress from the F# version was dead code and is not ported.) *)
+(* Recursive directory walker yielding detected_file records. *)
 
 let candidate_extensions =
   [

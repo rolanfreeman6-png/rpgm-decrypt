@@ -1,6 +1,6 @@
-(* Source — engine formats, per-file outcome, run summary.
-   F# discriminated unions -> OCaml variants; F# records -> OCaml records;
-   F# Map<Format,int> -> an (format * int) assoc list (small, fixed key set). *)
+(* Engine formats, per-file outcome, run summary. Variants for the format sum
+   type and outcome; records for detected_file/run_summary; the per-format
+   tally is an (format * int) assoc list (small, fixed key set). *)
 
 (** RPG Maker engine generation. Discriminator for the format dispatcher. *)
 type format =

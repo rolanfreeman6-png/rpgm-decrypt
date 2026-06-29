@@ -3,9 +3,9 @@ name: release
 # GitHub is the clean distribution channel. This workflow runs ONLY on tag
 # pushes (v*) — which GitLab CI mirrors over SSH after its test gates pass
 # (see .gitlab-ci.yml `github-mirror`) — and on manual dispatch. Day-to-day
-# CI (F# + OCaml tests, fuzz, verification) runs on GitLab; GitHub just builds
-# the release binaries from the exact tested commit. No PAT needed: the release
-# uses the auto-provided GITHUB_TOKEN.
+# CI (OCaml tests, fuzz, verification) runs on GitLab; GitHub just builds the
+# release binary from the exact tested commit. No PAT needed: the release uses
+# the auto-provided GITHUB_TOKEN.
 
 on:
   push:
@@ -18,54 +18,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  test:
-    name: build + test (${{ matrix.os }})
-    strategy:
-      fail-fast: true
-      matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
-          - macos-latest
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: 10.0.x
-          include-msbuild: false
-
-      - name: Restore
-        run: dotnet restore fsharp/src/RpgmDecrypt.slnx
-
-      - name: Build (Release)
-        shell: pwsh
-        run: |
-          dotnet build fsharp/src/RpgmDecrypt.slnx `
-            --configuration Release `
-            --no-restore `
-            /p:TreatWarningsAsErrors=true
-
-      - name: Run F# tests (Release)
-        shell: pwsh
-        run: |
-          dotnet run `
-            --project fsharp/src/RpgmDecrypt.Tests `
-            --configuration Release `
-            --no-build
-
   # ---- OCaml flagship: statically-linked musl single binary (linux-x64) -----
-  # The PRIMARY download. Built inside an Alpine (musl) container via `docker
+  # The release artifact. Built inside an Alpine (musl) container via `docker
   # run` (NOT `container:` — that breaks JS actions on musl because the runner's
-  # node is glibc). Compiles OCaml 5.3.0 on Alpine (~12-15 min, tag-only so
-  # fine), links libz + musl statically with the `static` dune profile, and
-  # re-runs the 72 parity checks on the static toolchain so the shipped binary
-  # is validated. Result: one file, zero runtime deps, runs on any x86-64 Linux.
+  # node is glibc). Compiles OCaml 5.3.0 on Alpine, links libz + musl statically
+  # with the `static` dune profile, and re-runs the 72 checks on the static
+  # toolchain so the shipped binary is validated. Result: one file, zero runtime
+  # deps, runs on any x86-64 Linux.
   ocaml-linux-x64:
     name: publish OCaml flagship (linux-x64, static musl)
-    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -100,122 +61,10 @@ jobs:
           path: rpgm-decrypt-linux-x64
           if-no-files-found: error
 
-  cli-linux-x64:
-    name: publish F# CLI (linux-x64, self-contained)
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Publish
-        shell: pwsh
-        run: |
-          dotnet publish fsharp/src/RpgmDecrypt.Cli `
-            --configuration Release `
-            --runtime linux-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:StripSymbols=true `
-            -o artifacts/linux-x64
-
-      - name: Smoke-test the CLI
-        shell: bash
-        run: |
-          chmod +x artifacts/linux-x64/rpgm-decrypt
-          artifacts/linux-x64/rpgm-decrypt --version
-          artifacts/linux-x64/rpgm-decrypt --help | head -20
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: cli-linux-x64
-          path: artifacts/linux-x64/rpgm-decrypt
-          if-no-files-found: error
-
-  cli-osx-arm64:
-    name: publish F# CLI (osx-arm64, self-contained)
-    needs: test
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Publish
-        shell: pwsh
-        run: |
-          dotnet publish fsharp/src/RpgmDecrypt.Cli `
-            --configuration Release `
-            --runtime osx-arm64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:StripSymbols=true `
-            -o artifacts/osx-arm64
-
-      - name: Smoke-test the CLI
-        shell: bash
-        run: |
-          chmod +x artifacts/osx-arm64/rpgm-decrypt
-          ./artifacts/osx-arm64/rpgm-decrypt --version
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: cli-osx-arm64
-          path: artifacts/osx-arm64/rpgm-decrypt
-          if-no-files-found: error
-
-  cli-windows-x64:
-    name: publish F# CLI (windows-x64, self-contained)
-    needs: test
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Publish
-        shell: pwsh
-        run: |
-          dotnet publish fsharp/src/RpgmDecrypt.Cli `
-            --configuration Release `
-            --runtime win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:StripSymbols=true `
-            -o artifacts/win-x64
-
-      - name: Smoke-test the CLI
-        shell: pwsh
-        run: |
-          ./artifacts/win-x64/rpgm-decrypt.exe --version
-          ./artifacts/win-x64/rpgm-decrypt.exe --help | Select-Object -First 10
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: cli-windows-x64
-          path: artifacts/win-x64/rpgm-decrypt.exe
-          if-no-files-found: error
-
   upload:
     name: publish GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: [ocaml-linux-x64, cli-linux-x64, cli-osx-arm64, cli-windows-x64]
+    needs: [ocaml-linux-x64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -224,31 +73,13 @@ jobs:
         with:
           name: ocaml-linux-x64
           path: dist/ocaml
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: cli-linux-x64
-          path: dist/linux-x64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: cli-osx-arm64
-          path: dist/osx-arm64
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: cli-windows-x64
-          path: dist/win-x64
-      - name: Attach binaries to release
+      - name: Attach binary to release
         uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda # v2.2.1
         with:
           body: |
-            Primary download: `rpgm-decrypt-linux-x64` — OCaml, statically-linked
-            musl single binary, zero runtime dependencies, runs on any x86-64
-            Linux. Parity-verified against the F# reference (72 checks) and the
-            12 QCheck2 properties; built from commit ${{ github.sha }}.
-
-            Secondary (F#, .NET 10 self-contained single-file): linux-x64,
-            osx-arm64, win-x64.
+            `rpgm-decrypt-linux-x64` — OCaml, statically-linked musl single
+            binary, zero runtime dependencies, runs on any x86-64 Linux.
+            Behaviour-verified by 72 checks + 12 QCheck2 properties; built from
+            commit ${{ github.sha }}.
           files: |
             dist/ocaml/rpgm-decrypt-linux-x64
-            dist/linux-x64/rpgm-decrypt
-            dist/osx-arm64/rpgm-decrypt
-            dist/win-x64/rpgm-decrypt.exe

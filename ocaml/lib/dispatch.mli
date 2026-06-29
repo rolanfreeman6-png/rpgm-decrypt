@@ -1,7 +1,7 @@
 (** Format classification and per-format dispatch.
 
-    Port of the F# [Format] module: classify a file by extension and magic
-    bytes, then route it to the appropriate decoder. *)
+    Classify a file by extension and magic bytes, then route it to the
+    appropriate decoder. *)
 
 val classify : string -> Types.format option
 (** [classify abs_path] inspects [abs_path]'s extension and first bytes and
