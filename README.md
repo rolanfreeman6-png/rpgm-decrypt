@@ -37,19 +37,21 @@ emits structured logs you can pipe to `jq`.
 
 This project fills that gap.
 
-## F# (and not OCaml)
+## F# origin → OCaml flagship
 
-The original plan was OCaml — same ML family, algebraic types via `discriminated
-union`, exhaustive pattern matching, native single binary. OCaml on Windows
-without 3+ GB of free disk space is currently impractical: the chocolatey
-package is OCaml 4.0.1 from 2014, and modern OCaml 5.x requires opam +
-either GCC+MSYS or WSL.
+The project started as an F# MVP: same ML family, algebraic types, exhaustive
+`match`, single self-contained .NET 10 binary. F# was chosen first because, at
+the time, OCaml on Windows looked impractical (the chocolatey package was
+OCaml 4.0.1 from 2014; modern 5.x needs opam + GCC/MSYS).
 
-We chose **F#** instead. F# shares OCaml's syntax heritage, its algebraic
-data types (`type Format = XP | VX | VXAce | MV | MZ`), its `match`-with-
-exhaustiveness-check, its immutability-by-default. Compile to a single
-self-contained .NET 10 binary (single-file publish, runtime bundled). The
-MVP code maps 1:1 to OCaml — if/when we port, it's mechanical.
+That turned out to be a tooling problem, not a language one. With a native
+opam/mingw64 switch (OCaml 5.5.0) the port was done — the F# code mapped 1:1.
+The **OCaml port is now the flagship**: it builds to a statically-linked musl
+single binary (zero runtime deps, runs on any x86-64 Linux), and is the primary
+download on GitHub Releases. The F# build remains as the parity reference (the
+OCaml port is tested byte-for-byte against it, 72 parity checks) and ships as a
+secondary self-contained asset. See `ocaml/README.md` for the port's formal
+verification (Gospel specs, QCheck properties, mutation testing).
 
 ## What it does
 
@@ -169,12 +171,16 @@ minutes to run the heavy gates:
 - OCaml port parity (`ocaml-build-test`, 72 checks) + property/Gospel verification
   (`ocaml-verification`, 12 QCheck2 properties + `gospel check`)
 - Coverage-guided fuzzing (`ocaml-fuzz`, afl-fuzz 90s)
-- Product binaries: `publish-linux` (F# linux-x64 self-contained),
-  `publish-windows` (F# win-x64 self-contained), `publish-ocaml` (OCaml native
-  Linux, needs `libz1c2` at runtime)
+- Product binaries:
+  - **`publish-ocaml`** (flagship) — OCaml statically-linked musl single binary,
+    `rpgm-decrypt-linux-x64`, zero runtime deps, runs on any x86-64 Linux
+  - `publish-linux` / `publish-windows` — F# self-contained secondary builds
+  - `publish-ocaml-windows` (manual) — OCaml native Windows `.exe`
 
-After **all** gates and publish jobs pass, `github-release` creates a GitHub
-Release on `rolanfreeman6-png/rpgm-decrypt` and uploads the three binaries:
+After **all** gates and the publish jobs pass, `github-release` creates a GitHub
+Release on `rolanfreeman6-png/rpgm-decrypt` and uploads the binaries — the OCaml
+static binary first (canonical name `rpgm-decrypt-linux-x64`), then the F#
+builds as `rpgm-decrypt-fsharp-*`:
 
 - push to `main` → `continuous` prerelease (overwritten each push)
 - tag `v…` → stable release
@@ -182,8 +188,9 @@ Release on `rolanfreeman6-png/rpgm-decrypt` and uploads the three binaries:
 Setup (one-time): add a CI/CD variable `GITHUB_RELEASE_TOKEN` in GitLab →
 Settings → CI/CD → Variables — a GitHub PAT with **Contents read/write** on
 `rolanfreeman6-png/rpgm-decrypt` (classic PAT: `repo` scope; fine-grained:
-"Contents: Read and write"). Mark it masked + protected. Without it the
-release job fails fast with a clear message and nothing is shipped.
+"Contents: Read and write"). Mark it masked + protected, and mark `main` as a
+protected branch so the protected variable reaches the release job. Without it
+the release job fails fast with a clear message and nothing is shipped.
 
 GitHub is the clean distribution channel — releases land there once GitLab has
 verified them.

@@ -18,4 +18,9 @@
 (env
  (release
   (flags
-   (:standard -warn-error +a-4-40-42-44-45-70))))
+   (:standard -warn-error +a-4-40-42-44-45-70)))
+ (static
+  (flags
+   (:standard -warn-error +a-4-40-42-44-45-70))
+  (ocamlopt_flags
+   (:standard -cclib,-static))))
