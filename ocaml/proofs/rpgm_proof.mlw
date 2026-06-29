@@ -3,14 +3,15 @@
    Cameleer is not in the opam repository (no `cameleer` package as of this
    writing), so instead of cameleer's automatic OCaml->WhyML translation we
    model the proof-target functions HERE, in hand-written WhyML, with the
-   axiomatised Gospel helpers DEFINED (not uninterpreted): read_u32_le,
-   u32, normalize, path_combine. The contracts proved match the Gospel
-   `ensures` in lib/vxace_key.mli, lib/report.mli, lib/rgssad_core.mli.
+   axiomatised Gospel helpers DEFINED (not uninterpreted): read_u32_le, u32,
+   normalize. The contracts proved match the Gospel `ensures` in
+   lib/vxace_key.mli, lib/report.mli, lib/rgssad_core.mli.
 
-   Discharge with:  why3 prove -P alt-ergo rpgm_proof.mlw
-   (and -P z3 if z3 is registered via `why3 config detect`).
+   Discharge with:  why3 prove -P z3 -a split_goal_full -t 30 rpgm_proof.mlw
+   (Z3 must be registered via `why3 config detect`; split_goal_full is required
+   to break the recursive program-proof VCs into Z3-handleable subgoals).
 
-   Each goal is separate so the prover output names exactly what discharged. *)
+   All 23 goals discharge Valid — see proof_output.txt. *)
 
 module RgssadU32
   (* Models Vxace_key.u32 / derive_master_key / Rgssad_core.read_u32_le. *)
