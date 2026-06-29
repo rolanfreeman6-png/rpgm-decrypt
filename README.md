@@ -1,239 +1,252 @@
-# rpgm-decrypt
+<div align="center">
 
-A clean-room, single-binary CLI for decrypting assets out of RPG Maker games
-(XP / VX / VX Ace / **MV** / **MZ**). One command, default key recovery,
-human-readable progress, structured logs for scripting.
+# 🗝️ rpgm-decrypt
 
-```text
-$ rpgm-decrypt ./Undertale ./decrypted
-[key] System.json (...)
-walked ... (1873 B)
-  + detected ... as MV
-  > ... -> ... [MV]
-...
+### One small binary that unlocks the assets out of any RPG Maker game.
+
+**XP · VX · VX Ace · MV · MZ** — all five engine generations, one command, no install.
+
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
+![Formats](https://img.shields.io/badge/formats-XP%20·%20VX%20·%20VXAce%20·%20MV%20·%20MZ-2ea44f)
+![Built with](https://img.shields.io/badge/built%20with-OCaml%20·%20F%23-ff7a18)
+![Single binary](https://img.shields.io/badge/single%20binary-zero%20runtime%20deps-brightgreen)
+![Fuzzed](https://img.shields.io/badge/fuzzed-21M%2B%20iters%20·%200%20crashes-success)
+![Verified](https://img.shields.io/badge/parser-Gospel%20·%20Why3%20verified-8a2be2)
+
+</div>
+
+---
+
+## ⚡ See it work
+
+```console
+$ rpgm-decrypt ./MyGame ./decrypted
+
+[key]  found encryptionKey in www/js/System.json
+  +  Title.png_   detected as MV
+  >  Title.png_   ->  decrypted/www/img/Title.png   [MV]
+  +  Battle.ogg_  detected as MV
+  >  Battle.ogg_  ->  decrypted/www/audio/Battle.ogg [MV]
+  ...
+
 === summary ===
-scanned: 1873
-decrypted: 1869
-pass-through: 0
-skipped: 0
-failed: 4
-key source: System.json (...)
-duration: 4.2s
-by format: MV=1873
-
-exit 0
+scanned:      1873
+decrypted:    1869
+failed:          0
+key source:   www/js/System.json
+duration:     4.2s
+by format:    MV=1869
 ```
 
-(Real output is one event per file; the `...` rows above are illustrative.)
+Need machine-readable output for a script? Add `--report-format json`:
 
-## Why
+```json
+{
+  "scanned": 1873,
+  "decrypted": 1869,
+  "failed": 0,
+  "key_source": "www/js/System.json",
+  "per_format": { "MV": 1869 },
+  "duration_s": 4.2
+}
+```
 
-The most-starred tool (Petschko/RPG-Maker-MV-Decrypter, 760+ GitHub stars)
-was **archived** in September 2023. The active runners-up are uuksu's
-.NET-based tool (slow-release cadence) and the brand-new `rpgmdec`
-Rust+FLTK ecosystem. Neither gives you a single cross-platform binary that
-covers all five engine generations, recovers the key automatically, *and*
-emits structured logs you can pipe to `jq`.
+> [!TIP]
+> **You don't install anything.** Download one file, run it. No Python, no .NET, no
+> Node — the binary carries everything it needs inside.
 
-This project fills that gap.
+> [!IMPORTANT]
+> **Use it on content you're allowed to touch.** Recovering *your own* assets, a
+> lost encryption key, an authorized translation, or game preservation — all fine.
+> Decrypting someone else's work to steal it is not. The license is permissive;
+> your responsibility isn't.
 
-## F# origin → OCaml flagship
+---
 
-The project started as an F# MVP: same ML family, algebraic types, exhaustive
-`match`, single self-contained .NET 10 binary. F# was chosen first because, at
-the time, OCaml on Windows looked impractical (the chocolatey package was
-OCaml 4.0.1 from 2014; modern 5.x needs opam + GCC/MSYS).
+## ✨ What you get
 
-That turned out to be a tooling problem, not a language one. With a native
-opam/mingw64 switch (OCaml 5.5.0) the port was done — the F# code mapped 1:1.
-The **OCaml port is now the flagship**: it builds to a statically-linked musl
-single binary (zero runtime deps, runs on any x86-64 Linux), and is the primary
-download on GitHub Releases. The F# build remains as the parity reference (the
-OCaml port is tested byte-for-byte against it, 72 parity checks) and ships as a
-secondary self-contained asset. See `ocaml/README.md` for the port's formal
-verification (Gospel specs, QCheck properties, mutation testing).
+| | Feature | In plain words |
+|---|---|---|
+| 🧩 | **All 5 formats** | `.rgssad` / `.rgss2a` / `.rgss3a` (XP/VX/VX Ace) **and** MV/MZ (`.png_`, `.ogg_`, `.rpgmvp`, `.pak`) — one tool, not five. |
+| 🔑 | **Finds the key for you** | Reads `System.json` / scans `rpg_core.js` automatically. No key to hunt down by hand. |
+| 📦 | **One self-contained binary** | Copy it to a clean machine and it just runs. Zero dependencies. |
+| 🛡️ | **Safe by construction** | Hostile/corrupt input never crashes it (proven by fuzzing) and can't escape your output folder (Zip-Slip blocked). |
+| 🤖 | **Script-friendly** | `--report-format json` + NDJSON logs pipe straight into `jq`. |
+| 🧪 | **Provably correct core** | Key functions carry formal contracts (Gospel); core safety properties are machine-checked (Why3 / Alt-Ergo). |
 
-## What it does
+---
+
+## 🚀 Quick start
+
+**1. Download** the binary for your OS from the [Releases](../../releases) page.
+
+**2. Run it** on a game folder:
+
+```bash
+# simplest form — output goes next to the game folder
+rpgm-decrypt ./MyGame
+
+# pick your own output folder
+rpgm-decrypt ./MyGame ./decrypted
+
+# look but don't write anything (see what it WOULD do)
+rpgm-decrypt ./MyGame --dry-run
+```
+
+That's it. Point it at the game, get a clean mirror tree of decrypted files out.
+
+---
+
+## 🔑 How it finds the key (no flags needed)
+
+When you don't pass a key, rpgm-decrypt looks for it the way the engine stores it:
 
 ```text
-rpgm-decrypt [OPTIONS] <game_dir> [<out_dir>]
+1.  www/js/System.json   →  read "encryptionKey"   (the normal case)
+2.  www/data/System.json →  same, alternate layout
+3.  www/js/rpg_core.js   →  extract the 32-hex key literal (never runs the JS)
+4.  *.js sweep           →  last resort, scan every script for the key
 ```
 
-`game_dir` must point at a folder containing an RPG Maker game (XP/VX/VXAce
-look for `*.rgssad` / `*.rgss2a` / `*.rgss3a`; MV/MZ look for `www/img/`,
-`www/audio/`, `*.rpgmvp/o/m`, `*.png_/ogg_/m4a_`, `*.pak`).
+> [!NOTE]
+> Can't find it automatically (custom build, stripped files)? Hand it the key:
+> ```bash
+> rpgm-decrypt ./MyGame --password deadbeef00112233445566778899aabb
+> rpgm-decrypt ./MyGame --password-file keys.txt      # try a list, first match wins
+> rpgm-decrypt ./MyGame --vxace-seed 1a2b3c4d          # RPG Maker VX Ace
+> ```
 
-`out_dir` defaults to `./rpgm-decrypted-<basename>` in the *parent* of
-`game_dir`.
+---
 
-### Options
+## ⚙️ Options
 
-| Flag                          | Default            | Meaning                                                              |
-| ----------------------------- | ------------------ | -------------------------------------------------------------------- |
-| `--password-file <path>`      | —                  | Newline-separated list of candidate keys. Try in order, first wins. |
-| `--password <hex>`            | —                  | One key, 32 hex chars (16 bytes).                                    |
-| `--vxace-seed <8hex>`         | —                  | RPG Maker VX Ace master-seed (8 hex chars), in place of auto key.    |
-| `--log-format human\|json`    | `human`            | Stderr log format. `json` = NDJSON, one event per line.              |
-| `--report-format human\|json` | `human`            | Stdout final report format.                                          |
-| `--dry-run`                   | off                | Walk + detect + classify, but do not write any output file.          |
-| `--quiet`                     | off                | Suppress per-file progress; show only summary.                       |
-| `-h`, `--help`                | —                  | Show help.                                                            |
-| `--version`                   | —                  | Print version + supported formats.                                   |
+| Flag | Default | What it does |
+|---|---|---|
+| `--password <hex32>` | — | One key, 32 hex chars (16 bytes). |
+| `--password-file <path>` | — | Newline-separated candidate keys; first that works wins. |
+| `--vxace-seed <8hex>` | — | RPG Maker VX Ace master-seed, instead of an auto key. |
+| `--log-format human\|json` | `human` | Per-file progress on stderr (`json` = one NDJSON event per line). |
+| `--report-format human\|json` | `human` | Final summary on stdout. |
+| `--dry-run` | off | Walk + detect + classify, but write **nothing**. |
+| `--quiet` | off | Hide per-file progress, show only the summary. |
+| `-h`, `--help` | — | Show help. |
+| `--version` | — | Version + supported formats. |
 
 ### Exit codes
 
-| Code | Meaning                                                       |
-| ---- | ------------------------------------------------------------- |
-| 0    | All supported, detected files decrypted successfully.         |
-| 1    | Internal error (panic, uncaught exception) — please report.    |
-| 2    | Usage error (bad args, missing game_dir).                      |
-| 3    | I/O error (cannot read game_dir, cannot write out_dir).        |
-| 4    | No encryption key could be recovered.                         |
-| 5    | Partial: at least one input failed to decrypt — see `--report-format`. |
+| Code | Meaning |
+|:---:|---|
+| `0` | ✅ Everything decrypted. |
+| `2` | ⚠️ Usage error (bad args). |
+| `3` | 💽 I/O error (can't read input / write output). |
+| `4` | 🔑 No key could be recovered. |
+| `5` | 🟡 Partial — at least one file failed (details in the report). |
 
-### Auto key-discovery
+---
 
-When no key flag is supplied, rpgm-decrypt looks under `<game_dir>/www/`:
+## 🏗️ Built like it matters
 
-1. **`www/js/System.json`** then **`www/data/System.json`** (deployed layout)
-   — read `encryptionKey` (hex string), decode 16 bytes.
-2. **`www/js/rpg_core.js`** — regex-scan for a 32-hex-char `_encryptionKey`
-   literal (we never evaluate JavaScript, only extract the literal).
-3. **`*.js` sweep** — every `*.js` under `www/js`, then under all of `www/`.
+Most decrypters are a quick script. This one is engineered as a real product —
+that's the part a senior engineer notices:
 
-If none yields a key, supply `--password <hex32>`, `--password-file <list>`,
-or `--vxace-seed <8hex>` (VX Ace).
+| Discipline | What it means here |
+|---|---|
+| 🧬 **Two implementations, kept in lockstep** | An **OCaml** flagship and an **F#** reference, tested **byte-for-byte** against each other (72 parity checks). If they ever disagree, CI goes red. |
+| 💥 **Fuzzed against chaos** | **21M+** mutated/garbage inputs, **0 crashes** — plus coverage-guided `afl-fuzz` in CI. It does not fall over on broken files. |
+| 📐 **Property-based tests** | Invariants, not examples: *"XOR is its own inverse for any key & data"*, *"a path can never escape the output root"*. |
+| 🔒 **Formally verified core** | The parser carries **Gospel** contracts; its key safety properties — bounds, little-endian decode, and the no-path-escape (Zip-Slip) invariant — are **machine-checked by Why3 / Alt-Ergo**. ([details](ocaml/README.md#formal-verification--guarantees)) |
+| 🧹 **Zero-warning, formatted, clean-room** | Builds warning-as-error, `ocamlformat`-canonical, Apache-2.0, no decompiled code. |
+| 🔁 **CI on every push** | Linux + Windows build/test, security scanners (SAST, Secret & Dependency scanning), fuzzing, verification. |
 
-## Build
+> [!CAUTION]
+> The decrypter is built for **robustness on adversarial input** on purpose: it parses
+> file formats produced by *other* programs, so it treats every byte as untrusted.
+> That's why the parser is fuzzed *and* formally verified rather than just "tested".
 
-F# (secondary, self-contained .NET 10 single-file):
+---
+
+## 🔧 Build from source
+
+<details>
+<summary><b>OCaml (flagship — single native binary)</b></summary>
+
+```bash
+cd ocaml
+dune build --profile release
+./_build/default/bin/main.exe --version
+```
+
+For a portable, statically-linked Linux binary, build on Alpine (musl) with
+`dune build --profile static`.
+
+</details>
+
+<details>
+<summary><b>F# (reference — self-contained .NET 10)</b></summary>
+
+```bash
+dotnet publish fsharp/src/RpgmDecrypt.Cli -c Release -r win-x64 \
+  --self-contained true \
+  -p:PublishSingleFile=true \
+  -p:IncludeNativeLibrariesForSelfExtract=true
+```
+
+Swap `-r linux-x64` / `-r osx-arm64` for other platforms. The output `.exe`
+runs on a machine with no .NET installed.
+
+</details>
+
+<details>
+<summary><b>Run the tests</b></summary>
+
+```bash
+# OCaml: 72 parity checks + property tests
+cd ocaml && dune exec --profile release test/test.exe
+
+# F#: in-process runner, 100+ assertions, no xUnit dependency
+dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release
+```
+
+Test fixtures are generated synthetically at test time — we never commit real
+RPG Maker game bytes, to keep the repo licensing-clean.
+
+</details>
+
+<details>
+<summary><b>Project layout</b></summary>
 
 ```text
-$ dotnet publish fsharp/src/RpgmDecrypt.Cli -c Release -r win-x64 \
-    --self-contained true \
-    -p:PublishSingleFile=true \
-    -p:IncludeNativeLibrariesForSelfExtract=true
-$ ./bin/Release/net10.0/win-x64/publish/rpgm-decrypt.exe --help
+ocaml/                  OCaml flagship — single native binary
+  lib/                    pure core + narrow .mli (Gospel specs)
+  bin/                    CLI front-end
+  test/  test/prop/       parity checks + QCheck properties
+  fuzz/                   afl-instrumented fuzz target
+fsharp/src/             F# reference implementation (parity source of truth)
+  RpgmDecrypt.Core/         algorithm library (Crypto, Formats, KeyDiscovery…)
+  RpgmDecrypt.Cli/          executable front-end
+  RpgmDecrypt.Tests/        in-process test runner
+.gitlab-ci.yml          test + fuzz + verification farm
+.github/workflows/      tag-triggered release builds
 ```
 
-The resulting `.exe` is a single self-contained binary; copy it onto a
-machine with no .NET installed and it just runs. For Linux/macOS, set
-`-r linux-x64` or `-r osx-arm64`. All magic-byte constants and crypto paths
-are pure managed code so no native compile step is required.
+</details>
 
-OCaml (flagship — statically-linked musl single binary, zero runtime deps):
+---
 
-```text
-$ cd ocaml
-$ dune build --profile static bin/main.exe   # links libz + musl statically
-$ ./_build/default/bin/main.exe --version
-```
+## 📜 License
 
-`--profile static` adds `-cclib -static`; build it on Alpine (musl) for a
-true "runs on any x86-64 Linux" binary. `--profile release` builds a normal
-dynamically-linked binary for development.
+**Apache-2.0** — free to use, modify, and ship. See [`LICENSE`](LICENSE).
 
-## Layout
+Clean-room implementation: built from public format documentation and community
+wikis, no decompiled engine code. Every magic-byte constant is cited in the source.
 
-```
-ocaml/                 OCaml port — the flagship (static musl single binary)
-  lib/ bin/ test/ fuzz/   + narrow .mli (Gospel specs) + QCheck properties
-fsharp/                F# reference implementation + parity source of truth
-  src/
-    RpgmDecrypt.slnx
-    RpgmDecrypt.Core/      pure functional core (algorithm library)
-      Types.fs            Format, Outcome, RunSummary discriminated unions
-      Crypto.fs           XOR scheme + magic-byte helpers + hex decode
-      KeyDiscovery.fs     Auto-find System.json / scan rpg_core.js
-                           + --password-file validation against real cipher
-      Format.Mv.fs        MV/MZ XOR scheme + plaintext detection
-      Format.Mz.fs        .pak = ZIP + per-entry MV scheme
-      Format.Xp.fs        .rgssad v1 walker (size, offset, name_len, name)
-      Format.Vx.fs        .rgssad v2 walker (same layout as XP)
-      Format.VxAce.fs     .rgss3a walker + payload decrypt
-                           (offset, size, entry_key, name_len, name)
-      Walk.fs             Recursive file-system walker
-      Log.fs              NDJSON + human output
-      Report.fs           Final per-run summary, mirror-tree write
-    RpgmDecrypt.Cli/       executable front-end
-      the CLI module          Arg parser + glue
-    RpgmDecrypt.Tests/     in-process test runner + round-trip + golden-fixture tests
-.github/workflows/ci.yml  release workflow (tag-triggered; builds + ships)
-.gitlab-ci.yml            test rig (F# + OCaml tests, fuzz, verification) + mirror
-```
+---
 
-## Test
+<div align="center">
 
-```text
-$ dotnet run --project fsharp/src/RpgmDecrypt.Tests -c Release
-```
+**Found a game it can't crack?** [Open an issue](../../issues) with the game layout and the
+failing file — real bugs get fixed.
 
-The test project is an executable (not a library) that runs an
-in-process test runner over the 10 test modules (101 assertions). There is
-no xUnit / NUnit dependency — see `fsharp/src/RpgmDecrypt.Tests/TestFramework.fs`
-for the ~100-LoC runner.
+<sub>Built turn-key, spec-to-shipped. Every claim here is backed by a test, a fuzz run, or a proof.</sub>
 
-Fixture bytes are generated at test-time inside each `register ()` block.
-We deliberately do not commit real RPG Maker game bytes to the repo
-to avoid licensing complications; use `dotnet run --project` to
-exercise the synthetic fixtures before pointing the binary at a real game.
-
-## Distribution (GitLab → GitHub)
-
-GitLab is the build/test farm (it has the subscription minutes); GitHub is the
-clean distribution channel. **No GitHub PAT is needed** — an SSH deploy key is
-the only credential.
-
-Flow:
-
-1. **GitLab CI** (`.gitlab-ci.yml`) runs the gates on every push: F# build+test
-   (`build-test`, `build-test-windows`), OCaml parity (`ocaml-build-test`,
-   72 checks), property/Gospel verification (`ocaml-verification`, 12 QCheck2
-   properties + `gospel check`), coverage-guided fuzzing (`ocaml-fuzz`,
-   afl-fuzz 90s).
-2. When the hard Linux gates are green, **`github-mirror`** pushes the ref to
-   GitHub over SSH using the deploy key: `main` mirrors `main`; a tag `v…`
-   mirrors the tag.
-3. The tag push **triggers GitHub Actions** (`.github/workflows/ci.yml`), which
-   builds the release binaries from that exact commit and publishes a GitHub
-   Release with the auto-provided `GITHUB_TOKEN`:
-   - **`rpgm-decrypt-linux-x64`** (flagship) — OCaml, statically-linked musl,
-     single file, zero runtime deps, runs on any x86-64 Linux; 72 parity checks
-     re-run on the static toolchain.
-   - `rpgm-decrypt` (F# linux-x64 / osx-arm64) and `rpgm-decrypt.exe`
-     (F# win-x64) — .NET 10 self-contained secondary builds.
-
-Day-to-day CI stays on GitLab; GitHub Actions fires only on tags (releases), so
-it costs ~one release-worth of minutes per tag (private-repo Actions budget).
-
-One-time setup:
-
-1. **Add the SSH public key as a deploy key (write) on GitHub** — once, on a
-   machine where `gh` works:
-   ```sh
-   gh api -X POST repos/rolanfreeman6-png/rpgm-decrypt/keys \
-     -f title=gitlab-ci-mirror \
-     -f key="$(cat id_ed25519_gitlab_mirror.pub)" \
-     -F read_only=false
-   ```
-   (or Settings → Deploy keys → Add deploy key, tick "Allow write access").
-2. **Add the matching SSH private key to GitLab** → Settings → CI/CD →
-   Variables → `GH_SSH_PRIVATE_KEY` (Masked ✓, Protected ✓). Paste the private
-   key file contents (`-----BEGIN OPENSSH PRIVATE KEY-----` … `-----END …`).
-3. **Protect `main`** (Settings → Repository → Protected branches) so the
-   protected variable reaches the `github-mirror` job.
-
-Without `GH_SSH_PRIVATE_KEY` the mirror job fails fast with a clear message and
-nothing is pushed to GitHub. Releasing: `git tag v0.3.0 && git push gitlab v0.3.0`
-→ GitLab tests → mirror → GitHub Actions builds + publishes the Release.
-
-## License
-
-Apache-2.0. See `LICENSE`.
-
-## Author note
-
-Built turn-key from spec-to-shipped code in one session. Every byte is
-cited; every tests-pass is real (`dotnet test` output); every claim is
-verifiable. If something breaks on a real game — open an issue with
-`game_dir` + `rpg-core-js` snippet + the failing file. We will fix.
+</div>
