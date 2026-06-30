@@ -95,6 +95,20 @@ rpgm-decrypt ./MyGame --dry-run
 
 That's it. Point it at the game, get a clean mirror tree of decrypted files out.
 
+### 🪟 Easiest way on Windows (no terminal)
+
+Not comfortable with the command line? The Windows download includes a small
+helper, **`decrypt.bat`**:
+
+1. Download `rpgm-decrypt-windows-x64.zip` and **extract the whole folder**
+   (keep `rpgm-decrypt.exe`, `zlib1.dll` and `decrypt.bat` together).
+2. **Drag your game folder onto `decrypt.bat`.**
+3. Done — the decrypted files appear in a new folder next to your game, named
+   `<your-game>-decrypted`.
+
+No install, no typing. (`zlib1.dll` is just the standard compression library
+Windows needs to read `.pak` archives — keep it next to the `.exe`.)
+
 ---
 
 ## 🔑 How it finds the key (no flags needed)
