@@ -122,7 +122,7 @@ let () =
   let pos = List.rev !pos in
 
   if !version then begin
-    Printf.printf "rpgm-decrypt 0.3.1\n";
+    Printf.printf "rpgm-decrypt 0.3.2\n";
     Printf.printf "  engine support: XP / VX / VX Ace / MV / MZ\n";
     Printf.printf "  built on OCaml %s\n" Sys.ocaml_version;
     exit !err_num
