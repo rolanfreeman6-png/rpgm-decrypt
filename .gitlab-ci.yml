@@ -338,6 +338,7 @@ release-windows:
   needs:
     - job: ocaml-build-test
   allow_failure: true
+  timeout: 2h
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   before_script:
