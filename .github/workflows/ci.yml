@@ -91,23 +91,32 @@ jobs:
           opam exec -- dune build --profile release bin/main.exe
           Copy-Item _build/default/bin/main.exe rpgm-decrypt-windows-x64.exe
 
-      - name: Smoke-test the .exe (will fail without zlib1.dll, that's expected)
+      - name: Locate zlib1.dll (camlzip's runtime C dep) and bundle into a zip
         shell: pwsh
         run: |
-          try { ./rpgm-decrypt-windows-x64.exe --version } catch { Write-Output "needs zlib1.dll (bundled next step)" }
-
-      - name: Locate zlib1.dll and bundle into a zip
-        shell: pwsh
-        run: |
-          $dll = Get-ChildItem -Path "$env:USERPROFILE\.opam" -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not $dll) { throw "zlib1.dll not found under $env:USERPROFILE\.opam" }
+          # setup-ocaml puts the opam root in a runner-specific path, not
+          # %USERPROFILE%\.opam — so ask opam where it is, and also search the
+          # switch prefix and the whole opam root as a fallback.
+          $root   = opam var root
+          $prefix = opam var prefix
+          Write-Output "opam root=$root  prefix=$prefix"
+          $dll = Get-ChildItem -Path $root,$prefix -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue |
+                 Select-Object -First 1
+          if (-not $dll) { throw "zlib1.dll not found under opam root=$root or prefix=$prefix" }
           Write-Output "Found zlib1.dll: $($dll.FullName)"
           New-Item -ItemType Directory -Path dist -Force | Out-Null
           Copy-Item rpgm-decrypt-windows-x64.exe dist/
           Copy-Item $dll.FullName dist/zlib1.dll
-          Compress-Archive -Path dist/rpgm-decrypt-windows-x64.exe, dist/zlib1.dll -DestinationPath rpgm-decrypt-windows-x64.zip -Force
-          Write-Output "=== zip contents ==="
+          Compress-Archive -Path dist/rpgm-decrypt-windows-x64.exe, dist/zlib1.dll `
+            -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+          Write-Output "=== zip size ==="
           (Get-Item rpgm-decrypt-windows-x64.zip).Length
+
+      - name: Smoke-test the .exe with the bundled DLL
+        shell: pwsh
+        run: |
+          Expand-Archive rpgm-decrypt-windows-x64.zip -DestinationPath smoke -Force
+          ./smoke/rpgm-decrypt-windows-x64.exe --version
 
       - name: Upload artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
