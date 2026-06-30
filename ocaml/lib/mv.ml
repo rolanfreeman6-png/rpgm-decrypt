@@ -1,4 +1,4 @@
-(* Source — MV/MZ individual-asset XOR decryption.
+(* MV/MZ individual-asset XOR decryption.
    cipher[i] = plain[i] XOR key[i mod keyLength]; symmetric. *)
 
 type decrypt_outcome =

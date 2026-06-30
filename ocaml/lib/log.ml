@@ -1,4 +1,4 @@
-(* Source — Human + NDJSON sinks to stderr. *)
+(* Human + NDJSON logging sinks to stderr. *)
 
 type format = Human | Json
 
