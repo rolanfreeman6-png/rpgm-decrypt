@@ -1,6 +1,6 @@
-(* Source — orchestrator: walk -> classify -> decrypt -> write a
-   mirror tree under out_dir, building a run_summary. Includes the Zip-Slip
-   containment check (safe_join, C-2) and the MZ argument-order fix (I-5). *)
+(* Orchestrator: walk -> classify -> decrypt -> write a mirror tree under
+   out_dir, building a run_summary. Includes the Zip-Slip containment check
+   (safe_join) and the MZ argument-order fix. *)
 
 type config = {
   game_dir : string;

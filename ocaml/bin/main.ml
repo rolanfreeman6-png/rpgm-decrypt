@@ -1,4 +1,4 @@
-(* Port of the CLI module — CLI front-end: arg parsing, key resolution, Report.run,
+(* CLI front-end: arg parsing, key resolution, Report.run,
    exit codes (0 ok / 2 usage / 3 io / 4 no-key / 5 partial). *)
 
 open Rpgm
