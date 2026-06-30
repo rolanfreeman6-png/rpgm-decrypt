@@ -1,15 +1,14 @@
-name: release-macos
+name: release
 
-# macOS binary builder — the one platform GitLab SaaS CI cannot build (no
-# macOS runners). GitLab CI builds Linux + Windows and publishes them to the
-# GitHub Release (.gitlab-ci.yml `release-linux`/`release-windows`/
-# `github-release`). This workflow builds ONLY the macOS binary on a GitHub
-# `macos-latest` (Apple Silicon) runner and appends it to the SAME release.
-#
-# Both sides are idempotent: whichever runs first creates the release, the
-# other uploads its assets to the existing one (gh release upload --clobber).
-# Triggered by the v* tag that `github-mirror` pushes from GitLab, and by
-# manual dispatch. Uses the auto-provided GITHUB_TOKEN (no PAT needed).
+# Windows + macOS binary builder. GitLab CI builds Linux (static musl) and the
+# test/verification/fuzz farm; it also publishes the Linux binary to the GitHub
+# Release (.gitlab-ci.yml `release-linux` + `github-release`). GitLab SaaS has
+# no macOS runners and its SaaS Windows runner's choco opam is unreliable, so
+# these two platforms are built here on GitHub Actions (setup-ocaml@v2) and
+# appended to the SAME release. Both sides are idempotent: whichever creates
+# the release first, the other uploads its assets (gh release upload --clobber).
+# Triggered by the v* tag that `github-mirror` pushes from GitLab, and by manual
+# dispatch. Uses the auto-provided GITHUB_TOKEN (no PAT needed).
 
 on:
   push:
@@ -22,6 +21,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # ---- Windows x86-64: native .exe + zlib1.dll + decrypt.bat, in a zip --------
+  # camlzip links zlib dynamically (static linking of camlzip on mingw is
+  # fragile), so the .exe needs zlib1.dll at runtime. Bundled next to the .exe
+  # plus the drag-and-drop decrypt.bat (packaging/decrypt.bat) into one zip.
+  ocaml-windows-x64:
+    name: publish OCaml (windows-x64, zip)
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml (opam + mingw64)
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: 5.3.0
+          packages: dune camlzip yojson re
+
+      - name: Build the .exe + bundle the zip
+        shell: pwsh
+        run: |
+          opam exec -- dune build --profile release bin/main.exe
+          Copy-Item _build/default/bin/main.exe rpgm-decrypt.exe
+          $root   = opam var root
+          $prefix = opam var prefix
+          $dll = Get-ChildItem -Path $root,$prefix -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "zlib1.dll not found under opam root=$root or prefix=$prefix" }
+          Write-Output "Found zlib1.dll: $($dll.FullName)"
+          Copy-Item $dll.FullName zlib1.dll
+          Copy-Item packaging/decrypt.bat decrypt.bat
+          Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll, decrypt.bat `
+            -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+          Write-Output "=== zip size ==="
+          (Get-Item rpgm-decrypt-windows-x64.zip).Length
+
+      - name: Smoke-test the .exe with the bundled DLL
+        shell: pwsh
+        run: |
+          Expand-Archive rpgm-decrypt-windows-x64.zip -DestinationPath smoke -Force
+          ./smoke/rpgm-decrypt.exe --version
+
+      - name: Append the zip to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          Write-Output "=== release-windows: tag=$tag ==="
+          if (-not (gh release view $tag --repo $env:GITHUB_REPOSITORY)) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target main `
+              --title $tag `
+              --notes "rpgm-decrypt $tag — Windows x86-64 (extract the zip: rpgm-decrypt.exe + zlib1.dll + decrypt.bat). Linux + macOS are built on GitLab CI / GitHub Actions and appended to this same release."
+          }
+          gh release upload $tag rpgm-decrypt-windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
+          Write-Output "=== uploaded rpgm-decrypt-windows-x64.zip to release $tag ==="
+
+  # ---- macOS (Apple Silicon, native) -----------------------------------------
+  # camlzip links the system zlib (/usr/lib/libz.dylib, present on every macOS),
+  # so the binary is self-contained — no bundling needed.
   ocaml-macos-arm64:
     name: publish OCaml (macos-arm64, native)
     runs-on: macos-latest
@@ -50,14 +108,11 @@ jobs:
         run: |
           TAG="${GITHUB_REF##*/}"
           echo "=== release-macos: tag=$TAG ==="
-          # Idempotent: GitLab's github-release job may have created the
-          # release already, or may run after this. Create if absent, then
-          # upload (clobber replaces if it already exists).
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" --target main \
               --title "$TAG" \
-              --notes "rpgm-decrypt $TAG — macOS (Apple Silicon) binary. Linux + Windows binaries are built on GitLab CI and published to this same release."
+              --notes "rpgm-decrypt $TAG — macOS (Apple Silicon) binary. Linux + Windows are built on GitLab CI / GitHub Actions and appended to this same release."
           fi
           gh release upload "$TAG" rpgm-decrypt-macos-arm64 \
             --repo "$GITHUB_REPOSITORY" --clobber
