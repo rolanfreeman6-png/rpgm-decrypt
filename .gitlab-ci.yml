@@ -46,6 +46,10 @@ ocaml-build-test-windows:
 ocaml-build-test:
   stage: test
   image: ubuntu:26.04
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_BRANCH
   variables:
     DEBIAN_FRONTEND: noninteractive
   before_script:
@@ -70,6 +74,10 @@ ocaml-fuzz:
   image: ubuntu:26.04
   needs: ["ocaml-build-test"]
   allow_failure: true
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_BRANCH
   variables:
     DEBIAN_FRONTEND: noninteractive
     AFL_SKIP_BIN_CHECK: "1"
@@ -153,6 +161,10 @@ ocaml-verification:
   stage: test
   image: ocaml/opam:debian-12-ocaml-5.3
   allow_failure: true
+  rules:
+    - if: $CI_COMMIT_TAG
+      when: never
+    - if: $CI_COMMIT_BRANCH
   before_script:
     - opam install -y dune camlzip yojson re qcheck gospel
   script:
@@ -301,8 +313,7 @@ github-mirror:
 release-linux:
   stage: publish
   image: alpine:3.20
-  needs:
-    - job: ocaml-build-test
+  needs: []
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   script:
@@ -325,17 +336,52 @@ release-linux:
       - rpgm-decrypt-linux-x64
     expire_in: 1 week
 
-# ---- Publish the Linux binary to the GitHub Release -------------------------
-# Windows + macOS are built on GitHub Actions (.github/workflows/ci.yml) —
-# GitLab SaaS has no macOS runners, and its SaaS Windows runner's choco opam
-# package is unreliable, so those two platforms use GitHub's setup-ocaml action
-# instead. Both sides are idempotent (create-or-upload with --clobber), so the
-# order GitLab-publishes-Linux vs GitHub-builds-Windows/macOS does not matter.
+# ---- Windows x86-64: native .exe + zlib1.dll + decrypt.bat, in a zip --------
+# SaaS Windows runner. opam is installed via winget (OCaml.opam — the choco
+# package was removed from the community feed) which is the same package used
+# on the dev machine. opam bootstraps Cygwin + mingw64 (~20-30 min).
+# allow_failure: true so a SaaS/winget/opam quirk never blocks the Linux
+# release; github-release uploads whichever binaries were produced.
+release-windows:
+  stage: publish
+  tags:
+    - saas-windows-medium-amd64
+  needs: []
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+/
+  before_script:
+    - winget install --id OCaml.opam --accept-package-agreements --accept-source-agreements
+    - $env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\OCaml.opam_Microsoft.Winget.Source_8wekyb3d8bbwe;$env:PATH"
+    - opam init --auto-setup --yes --disable-sandboxing
+    - opam install --yes dune camlzip yojson re
+  script:
+    - cd ocaml
+    - opam exec -- dune build --profile release bin/main.exe
+    - Copy-Item _build/default/bin/main.exe ../rpgm-decrypt.exe
+    - $root = opam var root
+    - $dll = Get-ChildItem -Path $root -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+    - if (-not $dll) { throw "zlib1.dll not found under opam root $root" }
+    - Copy-Item $dll.FullName ../zlib1.dll
+    - cd ..
+    - Copy-Item packaging/decrypt.bat decrypt.bat
+    - Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll, decrypt.bat -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+  artifacts:
+    paths:
+      - rpgm-decrypt-windows-x64.zip
+    expire_in: 1 week
+
+# ---- Publish the built binaries to the GitHub Release -----------------------
+# Runs on GitLab (no GitHub Actions minutes used — only gh CLI REST calls).
+# macOS is NOT built here: GitLab SaaS has no macOS runners. See the release
+# notes / README for the macOS situation. idempotent create-or-upload.
 github-release:
   stage: publish
   image: alpine:3.20
   needs:
     - job: release-linux
+    - job: release-windows
+      optional: true
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   script:
@@ -348,13 +394,16 @@ github-release:
       apk add --no-cache github-cli
       export GH_TOKEN
       REPO=rolanfreeman6-png/rpgm-decrypt
-      if [ ! -f rpgm-decrypt-linux-x64 ]; then echo "ERROR: linux binary missing"; exit 1; fi
-      echo "=== uploading Linux binary to GitHub Release $CI_COMMIT_TAG ==="
+      FILES=""
+      [ -f rpgm-decrypt-linux-x64 ]       && FILES="$FILES rpgm-decrypt-linux-x64"
+      [ -f rpgm-decrypt-windows-x64.zip ] && FILES="$FILES rpgm-decrypt-windows-x64.zip"
+      if [ -z "$FILES" ]; then echo "ERROR: no built binaries found to upload"; exit 1; fi
+      echo "=== uploading to GitHub Release $CI_COMMIT_TAG:$FILES ==="
       if gh release view "$CI_COMMIT_TAG" --repo "$REPO" >/dev/null 2>&1; then
-        gh release upload "$CI_COMMIT_TAG" rpgm-decrypt-linux-x64 --repo "$REPO" --clobber
+        gh release upload "$CI_COMMIT_TAG" $FILES --repo "$REPO" --clobber
       else
-        gh release create "$CI_COMMIT_TAG" rpgm-decrypt-linux-x64 --repo "$REPO" --target main \
+        gh release create "$CI_COMMIT_TAG" $FILES --repo "$REPO" --target main \
           --title "$CI_COMMIT_TAG" \
-          --notes "rpgm-decrypt $CI_COMMIT_TAG — Linux (static musl, zero deps). Windows .zip and macOS binary are built on GitHub Actions and appended to this same release."
+          --notes "rpgm-decrypt $CI_COMMIT_TAG. Linux: static musl single binary (chmod +x and run). Windows: extract the zip (rpgm-decrypt.exe + zlib1.dll + decrypt.bat) and run the .exe. Built on GitLab CI."
       fi
       echo "=== done ==="
