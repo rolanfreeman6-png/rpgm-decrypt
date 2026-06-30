@@ -22,5 +22,5 @@
  (static
   (flags
    (:standard -warn-error +a-4-40-42-44-45-70))
-  (ocamlopt_flags
-   (:standard -cclib,-static))))
+  (link_flags
+   (:standard -cclib -static))))
