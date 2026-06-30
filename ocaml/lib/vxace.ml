@@ -1,4 +1,4 @@
-(* Source — RGSS3 (`.rgss3a`, version 0x03).
+(* RGSS3 (`.rgss3a`, version 0x03).
    Master seed at byte 8 -> masterKey = seed*9+3; every entry field is XOR'd
    with masterKey; per-entry payload uses a rotating key (in Vxace_key). *)
 

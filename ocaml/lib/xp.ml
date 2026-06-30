@@ -1,4 +1,4 @@
-(* Source — XP `.rgssad` v1, thin wrapper over Rgssad_core
+(* XP `.rgssad` v1, thin wrapper over Rgssad_core
    (version 0x01, name_len=0 sentinel). Entry/error types are Rgssad_core's. *)
 
 type entry = Rgssad_core.entry

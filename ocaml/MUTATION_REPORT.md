@@ -1,4 +1,4 @@
-# Mutation testing report — OCaml port
+# Mutation testing report
 
 Manual smoke mutation campaign (no `mutaml` dependency: a PowerShell driver
 applies one mutation at a time, rebuilds, runs the behavioural suite

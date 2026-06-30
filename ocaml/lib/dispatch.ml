@@ -1,5 +1,4 @@
-(* Source (module Dispatch) — classify by extension/magic and
-   dispatch to the right per-format decoder. *)
+(* Classify by extension/magic and dispatch to the right per-format decoder. *)
 
 let classify (abs_path : string) : Types.format option =
   if not (Sys.file_exists abs_path) then None
