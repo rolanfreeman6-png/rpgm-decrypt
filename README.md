@@ -11,6 +11,7 @@
 ![Built with](https://img.shields.io/badge/built%20with-OCaml-ff7a18)
 ![Single binary](https://img.shields.io/badge/single%20binary-zero%20runtime%20deps-brightgreen)
 ![Fuzzed](https://img.shields.io/badge/fuzzed-21M%2B%20iters%20·%200%20crashes-success)
+![Mutation](https://img.shields.io/badge/mutation-7%2F7%20killed-2ea44f)
 ![Verified](https://img.shields.io/badge/parser-Gospel%20·%20Why3%20verified-8a2be2)
 
 </div>
