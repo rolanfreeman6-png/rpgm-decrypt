@@ -310,7 +310,9 @@ release-linux:
     - opam init --disable-sandboxing --bare -ay
     - opam switch create default ocaml-base-compiler.5.3.0 -y
     - eval $(opam env)
-    - opam install -y dune camlzip yojson re
+    # --no-depexts: zlib-dev is already apk-installed above; opam's depext
+    # resolver mis-detects it on Alpine and fails conf-zlib unnecessarily.
+    - opam install -y --no-depexts dune camlzip yojson re
     - cd ocaml
     - dune build --profile static bin/main.exe
     - cp _build/default/bin/main.exe ../rpgm-decrypt-linux-x64
@@ -323,47 +325,17 @@ release-linux:
       - rpgm-decrypt-linux-x64
     expire_in: 1 week
 
-# ---- Windows x86-64: native .exe + zlib1.dll, bundled in a zip -------------
-# SaaS Windows runner; opam bootstraps Cygwin+mingw64 (~20-30 min). allow_failure
-# so a SaaS/opam quirk never blocks the Linux release; github-release uploads
-# whichever binaries were produced.
-release-windows:
-  stage: publish
-  tags:
-    - saas-windows-medium-amd64
-  needs:
-    - job: ocaml-build-test
-  allow_failure: true
-  rules:
-    - if: $CI_COMMIT_TAG =~ /^v\d+/
-  before_script:
-    - choco install opam --yes --no-progress
-    - opam init --auto-setup --yes --disable-sandboxing
-    - opam install --yes dune camlzip yojson re
-  script:
-    - cd ocaml
-    - opam exec -- dune build --profile release bin/main.exe
-    - Copy-Item _build/default/bin/main.exe ../rpgm-decrypt.exe
-    - $root = opam var root
-    - $dll = Get-ChildItem -Path $root -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
-    - if (-not $dll) { throw "zlib1.dll not found under opam root $root" }
-    - Copy-Item $dll.FullName ../zlib1.dll
-    - cd ..
-    - Copy-Item packaging/decrypt.bat decrypt.bat
-    - Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll, decrypt.bat -DestinationPath rpgm-decrypt-windows-x64.zip -Force
-  artifacts:
-    paths:
-      - rpgm-decrypt-windows-x64.zip
-    expire_in: 1 week
-
-# ---- Publish the built binaries to the GitHub Release ----------------------
+# ---- Publish the Linux binary to the GitHub Release -------------------------
+# Windows + macOS are built on GitHub Actions (.github/workflows/ci.yml) —
+# GitLab SaaS has no macOS runners, and its SaaS Windows runner's choco opam
+# package is unreliable, so those two platforms use GitHub's setup-ocaml action
+# instead. Both sides are idempotent (create-or-upload with --clobber), so the
+# order GitLab-publishes-Linux vs GitHub-builds-Windows/macOS does not matter.
 github-release:
   stage: publish
   image: alpine:3.20
   needs:
     - job: release-linux
-    - job: release-windows
-      optional: true
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   script:
@@ -376,16 +348,13 @@ github-release:
       apk add --no-cache github-cli
       export GH_TOKEN
       REPO=rolanfreeman6-png/rpgm-decrypt
-      FILES=""
-      [ -f rpgm-decrypt-linux-x64 ]        && FILES="$FILES rpgm-decrypt-linux-x64"
-      [ -f rpgm-decrypt-windows-x64.zip ]  && FILES="$FILES rpgm-decrypt-windows-x64.zip"
-      if [ -z "$FILES" ]; then echo "ERROR: no built binaries found to upload"; exit 1; fi
-      echo "=== uploading to GitHub Release $CI_COMMIT_TAG:$FILES ==="
+      if [ ! -f rpgm-decrypt-linux-x64 ]; then echo "ERROR: linux binary missing"; exit 1; fi
+      echo "=== uploading Linux binary to GitHub Release $CI_COMMIT_TAG ==="
       if gh release view "$CI_COMMIT_TAG" --repo "$REPO" >/dev/null 2>&1; then
-        gh release upload "$CI_COMMIT_TAG" $FILES --repo "$REPO" --clobber
+        gh release upload "$CI_COMMIT_TAG" rpgm-decrypt-linux-x64 --repo "$REPO" --clobber
       else
-        gh release create "$CI_COMMIT_TAG" $FILES --repo "$REPO" --target main \
+        gh release create "$CI_COMMIT_TAG" rpgm-decrypt-linux-x64 --repo "$REPO" --target main \
           --title "$CI_COMMIT_TAG" \
-          --notes "Built on GitLab CI, published to GitHub. Windows: extract the zip (rpgm-decrypt.exe + zlib1.dll) and run the .exe. Linux: chmod +x and run."
+          --notes "rpgm-decrypt $CI_COMMIT_TAG — Linux (static musl, zero deps). Windows .zip and macOS binary are built on GitHub Actions and appended to this same release."
       fi
       echo "=== done ==="
