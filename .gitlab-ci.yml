@@ -19,7 +19,7 @@ stages:
   - fuzz
   - publish
 
-# ---- OCaml port build + behavioural tests on Windows (opam) --------------------
+# ---- OCaml build + behavioural tests on Windows (opam) --------------------
 # opam on Windows bootstraps its own Cygwin + builds the compiler, which is slow
 # and consumes scarce trial Windows minutes, so this is opt-in (when: manual)
 # and never blocks the pipeline (allow_failure). Native behavioural on Windows is
@@ -42,7 +42,7 @@ ocaml-build-test-windows:
     - opam exec -- dune build @fmt   # format gate (ocamlformat 0.29.0)
     - opam exec -- dune exec --profile release test/test.exe
 
-# ---- OCaml port (ocaml/) — build + behavioural tests on a Linux OCaml toolchain --
+# ---- OCaml (ocaml/) — build + behavioural tests on a Linux OCaml toolchain --
 ocaml-build-test:
   stage: test
   image: ubuntu:26.04
