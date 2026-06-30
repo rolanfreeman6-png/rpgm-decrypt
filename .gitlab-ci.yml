@@ -283,3 +283,108 @@ github-mirror:
         git push github "$CI_COMMIT_SHA:refs/heads/main"
         echo "=== mirrored main to GitHub ==="
       fi
+
+# =============================================================================
+# Release binaries: BUILT ON GITLAB, PUBLISHED TO GITHUB RELEASES.
+# GitHub Actions is billing-blocked, so instead of triggering it we build the
+# binaries here (GitLab Ultimate has the CI minutes) and upload them straight to
+# the GitHub Release via a GitHub token. Runs only on v* tags.
+#
+# Required CI/CD variable (GitLab -> Settings -> CI/CD -> Variables):
+#   GH_TOKEN  a GitHub Personal Access Token with Contents read+write on
+#             rolanfreeman6-png/rpgm-decrypt (fine-grained: Contents=Read&write;
+#             or classic token with the `repo` scope). Masked. Without it the
+#             github-release job fails fast with a clear message.
+# =============================================================================
+
+# ---- Linux x86-64: static musl single binary, zero runtime deps ------------
+release-linux:
+  stage: publish
+  image: alpine:3.20
+  needs:
+    - job: ocaml-build-test
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+/
+  script:
+    - apk add --no-cache ocaml opam build-base musl-dev zlib-dev zlib-static bash coreutils file tar
+    - opam init --disable-sandboxing --bare -ay
+    - opam switch create default ocaml-base-compiler.5.3.0 -y
+    - eval $(opam env)
+    - opam install -y dune camlzip yojson re
+    - cd ocaml
+    - dune build --profile static bin/main.exe
+    - cp _build/default/bin/main.exe ../rpgm-decrypt-linux-x64
+    - chmod +x ../rpgm-decrypt-linux-x64
+    - cd ..
+    - file rpgm-decrypt-linux-x64
+    - ./rpgm-decrypt-linux-x64 --version
+  artifacts:
+    paths:
+      - rpgm-decrypt-linux-x64
+    expire_in: 1 week
+
+# ---- Windows x86-64: native .exe + zlib1.dll, bundled in a zip -------------
+# SaaS Windows runner; opam bootstraps Cygwin+mingw64 (~20-30 min). allow_failure
+# so a SaaS/opam quirk never blocks the Linux release; github-release uploads
+# whichever binaries were produced.
+release-windows:
+  stage: publish
+  tags:
+    - saas-windows-medium-amd64
+  needs:
+    - job: ocaml-build-test
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+/
+  before_script:
+    - choco install opam --yes --no-progress
+    - opam init --auto-setup --yes --disable-sandboxing
+    - opam install --yes dune camlzip yojson re
+  script:
+    - cd ocaml
+    - opam exec -- dune build --profile release bin/main.exe
+    - Copy-Item _build/default/bin/main.exe ../rpgm-decrypt.exe
+    - $root = opam var root
+    - $dll = Get-ChildItem -Path $root -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+    - if (-not $dll) { throw "zlib1.dll not found under opam root $root" }
+    - Copy-Item $dll.FullName ../zlib1.dll
+    - cd ..
+    - Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+  artifacts:
+    paths:
+      - rpgm-decrypt-windows-x64.zip
+    expire_in: 1 week
+
+# ---- Publish the built binaries to the GitHub Release ----------------------
+github-release:
+  stage: publish
+  image: alpine:3.20
+  needs:
+    - job: release-linux
+    - job: release-windows
+      optional: true
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v\d+/
+  script:
+    - |
+      set -eu
+      if [ -z "${GH_TOKEN:-}" ]; then
+        echo "ERROR: set CI/CD variable GH_TOKEN (GitHub PAT, Contents read+write on rolanfreeman6-png/rpgm-decrypt)."
+        exit 1
+      fi
+      apk add --no-cache github-cli
+      export GH_TOKEN
+      REPO=rolanfreeman6-png/rpgm-decrypt
+      FILES=""
+      [ -f rpgm-decrypt-linux-x64 ]        && FILES="$FILES rpgm-decrypt-linux-x64"
+      [ -f rpgm-decrypt-windows-x64.zip ]  && FILES="$FILES rpgm-decrypt-windows-x64.zip"
+      if [ -z "$FILES" ]; then echo "ERROR: no built binaries found to upload"; exit 1; fi
+      echo "=== uploading to GitHub Release $CI_COMMIT_TAG:$FILES ==="
+      if gh release view "$CI_COMMIT_TAG" --repo "$REPO" >/dev/null 2>&1; then
+        gh release upload "$CI_COMMIT_TAG" $FILES --repo "$REPO" --clobber
+      else
+        gh release create "$CI_COMMIT_TAG" $FILES --repo "$REPO" --target main \
+          --title "$CI_COMMIT_TAG" \
+          --notes "Built on GitLab CI, published to GitHub. Windows: extract the zip (rpgm-decrypt.exe + zlib1.dll) and run the .exe. Linux: chmod +x and run."
+      fi
+      echo "=== done ==="
