@@ -326,11 +326,11 @@ release-linux:
     expire_in: 1 week
 
 # ---- Windows x86-64: native .exe + zlib1.dll + decrypt.bat, in a zip --------
-# SaaS Windows runner. opam is installed via winget (OCaml.opam — the choco
-# package was removed from the community feed) which is the same package used
-# on the dev machine. opam bootstraps Cygwin + mingw64 (~20-30 min).
-# allow_failure: true so a SaaS/winget/opam quirk never blocks the Linux
-# release; github-release uploads whichever binaries were produced.
+# SaaS Windows runner. winget is NOT available on Windows Server, and the choco
+# opam package was removed from the community feed, so we download the official
+# opam Windows binary directly (it self-bootstraps Cygwin + mingw + an OCaml
+# compiler via `opam init --auto-setup`; ~20-30 min). allow_failure: true so a
+# bootstrap quirk never blocks the Linux release.
 release-windows:
   stage: publish
   tags:
@@ -341,8 +341,8 @@ release-windows:
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   before_script:
-    - winget install --id OCaml.opam --accept-package-agreements --accept-source-agreements
-    - $env:PATH = "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\OCaml.opam_Microsoft.Winget.Source_8wekyb3d8bbwe;$env:PATH"
+    - Invoke-WebRequest -Uri "https://github.com/ocaml/opam/releases/download/2.5.1/opam-2.5.1-x86_64-windows.exe" -OutFile "opam.exe"
+    - $env:PATH = "$env:PWD;$env:PATH"
     - opam init --auto-setup --yes --disable-sandboxing
     - opam install --yes dune camlzip yojson re
   script:
