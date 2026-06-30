@@ -46,10 +46,6 @@ ocaml-build-test-windows:
 ocaml-build-test:
   stage: test
   image: ubuntu:26.04
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_BRANCH
   variables:
     DEBIAN_FRONTEND: noninteractive
   before_script:
@@ -74,10 +70,6 @@ ocaml-fuzz:
   image: ubuntu:26.04
   needs: ["ocaml-build-test"]
   allow_failure: true
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_BRANCH
   variables:
     DEBIAN_FRONTEND: noninteractive
     AFL_SKIP_BIN_CHECK: "1"
@@ -161,10 +153,6 @@ ocaml-verification:
   stage: test
   image: ocaml/opam:debian-12-ocaml-5.3
   allow_failure: true
-  rules:
-    - if: $CI_COMMIT_TAG
-      when: never
-    - if: $CI_COMMIT_BRANCH
   before_script:
     - opam install -y dune camlzip yojson re qcheck gospel
   script:
@@ -313,7 +301,8 @@ github-mirror:
 release-linux:
   stage: publish
   image: alpine:3.20
-  needs: []
+  needs:
+    - job: ocaml-build-test
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   script:
@@ -346,7 +335,8 @@ release-windows:
   stage: publish
   tags:
     - saas-windows-medium-amd64
-  needs: []
+  needs:
+    - job: ocaml-build-test
   allow_failure: true
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
