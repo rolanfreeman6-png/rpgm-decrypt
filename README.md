@@ -19,6 +19,10 @@
 
 ## ⚡ See it work
 
+<div align="center">
+  <img src="docs/demo-cli.gif" alt="rpgm-decrypt decrypting a real game from the command line" width="800">
+</div>
+
 ```console
 $ rpgm-decrypt ./MyGame ./decrypted
 
@@ -108,6 +112,10 @@ helper, **`decrypt.bat`**:
 
 No install, no typing. (`zlib1.dll` is just the standard compression library
 Windows needs to read `.pak` archives — keep it next to the `.exe`.)
+
+<div align="center">
+  <img src="docs/demo-drag.gif" alt="Drag a game folder onto decrypt.bat and it decrypts automatically" width="760">
+</div>
 
 ---
 
