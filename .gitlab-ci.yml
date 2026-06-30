@@ -349,7 +349,8 @@ release-windows:
     - if (-not $dll) { throw "zlib1.dll not found under opam root $root" }
     - Copy-Item $dll.FullName ../zlib1.dll
     - cd ..
-    - Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+    - Copy-Item packaging/decrypt.bat decrypt.bat
+    - Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll, decrypt.bat -DestinationPath rpgm-decrypt-windows-x64.zip -Force
   artifacts:
     paths:
       - rpgm-decrypt-windows-x64.zip
