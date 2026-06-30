@@ -377,6 +377,18 @@ let test_classify () =
   let zp = write_tmp ".bin" (Bytes.of_string "PK\x03\x04stuffstuff") in
   check "classify zip magic -> MZ" (Dispatch.classify zp = Some Types.MZ);
   Sys.remove zp;
+  (* a real MZ `.pak` is a ZIP -> MZ; a NW.js/Chromium `.pak` (no ZIP magic,
+     it starts with a version word) is NOT ours -> None (skipped, not failed) *)
+  let pak_zip = write_tmp ".pak" (Bytes.of_string "PK\x03\x04stuffstuff") in
+  check "classify .pak (zip) -> MZ" (Dispatch.classify pak_zip = Some Types.MZ);
+  Sys.remove pak_zip;
+  let pak_nwjs =
+    write_tmp ".pak"
+      (Bytes.of_string "\x04\x00\x00\x00\x01\x00\x00\x00chrome resource pak")
+  in
+  check "classify .pak (non-zip NW.js) -> None"
+    (Dispatch.classify pak_nwjs = None);
+  Sys.remove pak_nwjs;
   let no = write_tmp ".bin" (Bytes.of_string "not a game file here") in
   check "classify unknown -> None" (Dispatch.classify no = None);
   Sys.remove no

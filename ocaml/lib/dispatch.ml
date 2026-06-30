@@ -26,7 +26,11 @@ let classify (abs_path : string) : Types.format option =
           | _ -> Some Types.XP)
     | ".rgss2a" -> Some Types.VX
     | ".rgss3a" -> Some Types.VXAce
-    | ".pak" -> Some Types.MZ
+    (* A `.pak` is an RPG Maker MZ archive only if it is actually a ZIP. NW.js /
+       Chromium games ship engine `.pak` files (locales/*.pak, resources.pak,
+       nw_*.pak) that share the extension but are NOT ZIPs — treat those as
+       not-our-format (skipped) instead of a failed MZ decode. *)
+    | ".pak" -> if Crypto.is_zip_magic first_bytes then Some Types.MZ else None
     | ".png_" | ".ogg_" | ".m4a_" -> Some Types.MV
     | ".rpgmvp" | ".rpgmvo" | ".rpgmvm" -> Some Types.MV
     | ".png" | ".ogg" | ".m4a" | ".webp" | ".jpg" -> Some Types.MV
