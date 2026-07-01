@@ -58,3 +58,7 @@ secrets/
 
 # node-style (just in case)
 node_modules/
+
+# SonarScanner local working dir (manual analysis runs only; never commit)
+.scannerwork/
+.sonar/
