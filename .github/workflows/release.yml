@@ -1,0 +1,178 @@
+name: release
+
+# Self-contained CI + release on GitHub Actions.
+#
+#   * test        — build + run the full test suite on Linux (every push/PR/tag).
+#   * linux-x64   — static-ish native binary, appended to the release.
+#   * windows-x64 — native .exe + zlib1.dll + decrypt.bat, zipped and appended.
+#   * macos-arm64 — native binary, appended.
+#
+# The three publish jobs run only on v* tags and only after `test` passes. They
+# use the auto-provided GITHUB_TOKEN (no PAT needed) and are idempotent:
+# whichever job creates the release first, the others upload with --clobber.
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: ocaml
+
+jobs:
+  # ---- build + test (gate for the release jobs) ------------------------------
+  test:
+    name: build + test (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3.0"
+
+      - name: Install deps
+        run: opam install -y dune camlzip yojson re qcheck-core
+
+      - name: Build
+        run: opam exec -- dune build
+
+      - name: Run tests
+        run: opam exec -- dune runtest --force
+
+  # ---- Linux x86-64 native binary --------------------------------------------
+  linux-x64:
+    name: publish (linux-x64)
+    runs-on: ubuntu-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3.0"
+
+      - name: Build the Linux binary (release)
+        run: |
+          opam install -y dune camlzip yojson re
+          opam exec -- dune build --profile release bin/main.exe
+          cp _build/default/bin/main.exe ../rpgm-decrypt-linux-x64
+          chmod +x ../rpgm-decrypt-linux-x64
+          ../rpgm-decrypt-linux-x64 --version
+
+      - name: Append the binary to the GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target main \
+              --title "$TAG" \
+              --notes "rpgm-decrypt $TAG — decrypts RPG Maker games. By default it writes a full, ready-to-run decrypted copy of the game (all non-asset files preserved); use --assets-only for just the decrypted media. Binaries for Linux, Windows and macOS are attached to this release."
+          fi
+          gh release upload "$TAG" rpgm-decrypt-linux-x64 --repo "$GITHUB_REPOSITORY" --clobber
+
+  # ---- Windows x86-64: native .exe + zlib1.dll + decrypt.bat, in a zip -------
+  # camlzip links zlib dynamically on mingw, so the .exe needs zlib1.dll at
+  # runtime — bundled next to the .exe plus the drag-and-drop decrypt.bat.
+  windows-x64:
+    name: publish (windows-x64, zip)
+    runs-on: windows-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml (opam + mingw64)
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3.0"
+
+      - name: Build the .exe + bundle the zip
+        shell: pwsh
+        run: |
+          opam install -y dune camlzip yojson re
+          opam exec -- dune build --profile release bin/main.exe
+          Copy-Item _build/default/bin/main.exe rpgm-decrypt.exe
+          $root   = opam var root
+          $prefix = opam var prefix
+          $dll = Get-ChildItem -Path $root,$prefix -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "zlib1.dll not found under opam root=$root or prefix=$prefix" }
+          Write-Output "Found zlib1.dll: $($dll.FullName)"
+          Copy-Item $dll.FullName zlib1.dll
+          Copy-Item ../packaging/decrypt.bat decrypt.bat
+          Compress-Archive -Path rpgm-decrypt.exe, zlib1.dll, decrypt.bat `
+            -DestinationPath rpgm-decrypt-windows-x64.zip -Force
+
+      - name: Smoke-test the .exe with the bundled DLL
+        shell: pwsh
+        run: |
+          Expand-Archive rpgm-decrypt-windows-x64.zip -DestinationPath smoke -Force
+          ./smoke/rpgm-decrypt.exe --version
+
+      - name: Append the zip to the GitHub Release
+        working-directory: ocaml
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if (-not (gh release view $tag --repo $env:GITHUB_REPOSITORY)) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target main `
+              --title $tag `
+              --notes "rpgm-decrypt $tag — Windows x86-64. Extract the zip (rpgm-decrypt.exe + zlib1.dll + decrypt.bat), then drag a game folder onto decrypt.bat for a full decrypted copy."
+          }
+          gh release upload $tag rpgm-decrypt-windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
+
+  # ---- macOS (Apple Silicon, native) -----------------------------------------
+  macos-arm64:
+    name: publish (macos-arm64)
+    runs-on: macos-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3.0"
+
+      - name: Build the macOS binary (release)
+        run: |
+          opam install -y dune camlzip yojson re
+          opam exec -- dune build --profile release bin/main.exe
+          cp _build/default/bin/main.exe ../rpgm-decrypt-macos-arm64
+          chmod +x ../rpgm-decrypt-macos-arm64
+          ../rpgm-decrypt-macos-arm64 --version
+
+      - name: Append the binary to the GitHub Release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target main \
+              --title "$TAG" \
+              --notes "rpgm-decrypt $TAG — macOS (Apple Silicon)."
+          fi
+          gh release upload "$TAG" rpgm-decrypt-macos-arm64 --repo "$GITHUB_REPOSITORY" --clobber

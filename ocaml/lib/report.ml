@@ -8,6 +8,7 @@ type config = {
   key : bytes;
   key_source : string;
   dry_run : bool;
+  mirror : bool;
   on_event : Log.event -> unit;
 }
 
@@ -29,20 +30,17 @@ let copy_through (src : string) (dst : string) : unit =
   if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
   Io.write_file dst (Io.read_file src)
 
-let strip_encryption_extension (path : string) : string =
-  if String.length path > 0 && path.[String.length path - 1] = '_' then
-    String.sub path 0 (String.length path - 1)
-  else path
-
 let rename_by_kind (rel_path : string) (kind : string) : string =
   match kind with
-  | "png" | "ogg" | "m4a" -> strip_encryption_extension rel_path
-  | "webp" ->
+  | "png" | "ogg" | "m4a" | "webp" | "jpg" ->
+      (* Swap whatever encrypted extension the input had (.png_, .rpgmvp, …)
+         for the real one implied by the decrypted [kind]. Join with "/" (never
+         Filename.concat, whose "\\" on Windows would defeat the "/"-based
+         safe_join traversal check). *)
       let dir = Filename.dirname rel_path in
       let stem = Filename.remove_extension (Filename.basename rel_path) in
-      let ext = "." ^ kind in
-      if dir = "" || dir = "." then stem ^ ext
-      else Filename.concat dir (stem ^ ext)
+      let base = stem ^ "." ^ kind in
+      if dir = "" || dir = "." then base else dir ^ "/" ^ base
   | _ -> rel_path
 
 (* ---- path containment (Zip-Slip defence, C-2) ------------------------- *)
@@ -87,6 +85,77 @@ let safe_join (out_dir : string) (rel : string) : string option =
 
 let to_local (rel : string) : string =
   String.map (fun c -> if c = '\\' then '/' else c) rel
+
+(* ---- full-game mirror copy (default mode) ----------------------------- *)
+
+(* Recursively copy every file under [src] into [dst], preserving structure.
+   [skip] is a normalised absolute path (usually the out_dir) that is never
+   descended into — this prevents an infinite copy when out_dir is nested
+   inside game_dir. Best-effort: unreadable entries are skipped, never raise. *)
+let copy_tree ~(skip : string) (src : string) (dst : string) : unit =
+  let rec go (rel : string) : unit =
+    let cur = if rel = "" then src else Filename.concat src rel in
+    match Sys.readdir cur with
+    | exception _ -> ()
+    | names ->
+        Array.iter
+          (fun name ->
+            let child_rel =
+              if rel = "" then name else Filename.concat rel name
+            in
+            let child_abs = Filename.concat src child_rel in
+            (* compare slash-normalised so a Windows "\\" can't slip past the
+               out_dir guard and cause runaway copying *)
+            if normalize (to_local child_abs) = skip then ()
+              (* don't recurse into out_dir *)
+            else
+              match Sys.is_directory child_abs with
+              | true -> go child_rel
+              | false -> (
+                  try copy_through child_abs (Filename.concat dst child_rel)
+                  with _ -> ())
+              | exception _ -> ())
+          names
+  in
+  go ""
+
+(* Flip "hasEncryptedImages"/"hasEncryptedAudio" from true to false in a
+   System.json body. Returns (new_bytes, changed). Uses a targeted regex rather
+   than a full JSON round-trip so unrelated formatting/keys are left untouched. *)
+let patch_system_json (b : bytes) : bytes * bool =
+  let s = Bytes.to_string b in
+  let flip key body =
+    let re = Re.Perl.compile_pat ("(\"" ^ key ^ "\"\\s*:\\s*)true") in
+    Re.replace re ~f:(fun g -> Re.Group.get g 1 ^ "false") body
+  in
+  let s' = flip "hasEncryptedImages" s |> flip "hasEncryptedAudio" in
+  (Bytes.of_string s', s' <> s)
+
+(* Walk the mirrored out_dir, patching every System.json so the decrypted copy
+   boots without the engine trying to decrypt already-plaintext assets. *)
+let strip_encryption_flags (cfg : config) : unit =
+  let rec go (dir : string) : unit =
+    match Sys.readdir dir with
+    | exception _ -> ()
+    | names ->
+        Array.iter
+          (fun name ->
+            let p = Filename.concat dir name in
+            match Sys.is_directory p with
+            | true -> go p
+            | false ->
+                if String.lowercase_ascii name = "system.json" then begin
+                  match Io.read_file p with
+                  | exception _ -> ()
+                  | body -> (
+                      let patched, changed = patch_system_json body in
+                      if changed && not cfg.dry_run then
+                        try Io.write_file p patched with _ -> ())
+                end
+            | exception _ -> ())
+          names
+  in
+  go cfg.out_dir
 
 (* error -> string (human-readable variant name) *)
 let rgssad_err_str = function
@@ -204,6 +273,11 @@ let run (cfg : config) : Types.run_summary =
       Types.inputs_scanned = List.length detected;
       key_source = cfg.key_source;
     };
+  (* Mirror mode (default): first clone the whole game tree verbatim so every
+     non-asset file (.json/.txt/.js/.exe/…) is preserved, then the decrypt loop
+     below overwrites the encrypted assets in place. *)
+  if cfg.mirror && not cfg.dry_run then
+    copy_tree ~skip:(normalize (to_local cfg.out_dir)) cfg.game_dir cfg.out_dir;
   List.iter
     (fun (d : Types.detected_file) ->
       cfg.on_event (Log.Walked (d.Types.abs_path, d.Types.size_bytes));
@@ -219,6 +293,13 @@ let run (cfg : config) : Types.run_summary =
                 let real_kind_out = rename_by_kind out_rel kind in
                 let real_out_abs = path_combine cfg.out_dir real_kind_out in
                 if not cfg.dry_run then write_all_bytes real_out_abs bytes;
+                (* In mirror mode the encrypted original was copied verbatim; if
+                   decrypting renamed it (Hero.png_ -> Hero.png), drop the stale
+                   twin so the engine can't pick up the encrypted file. *)
+                if
+                  cfg.mirror && (not cfg.dry_run) && real_kind_out <> out_rel
+                  && Sys.file_exists out_abs
+                then (try Sys.remove out_abs with _ -> ());
                 summary :=
                   Types.tally
                     (Types.Decrypted
@@ -316,5 +397,8 @@ let run (cfg : config) : Types.run_summary =
             extract_vxace_archive !archive_bytes d.Types.rel_path
               d.Types.abs_path cfg summary)
     detected;
+  (* Mirror mode: with the tree cloned and assets decrypted in place, clear the
+     engine's "assets are encrypted" flags so the copy boots as-is. *)
+  if cfg.mirror then strip_encryption_flags cfg;
   summary := { !summary with Types.finished_at = Unix.gettimeofday () };
   !summary

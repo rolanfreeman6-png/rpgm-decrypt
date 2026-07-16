@@ -20,10 +20,15 @@ type config = {
   key : bytes;
   key_source : string;
   dry_run : bool;
+  mirror : bool;
   on_event : Log.event -> unit;
 }
 (** Run configuration. [on_event] receives every log event; [dry_run] skips all
-    writes. *)
+    writes. When [mirror] is set, the whole game tree is cloned into [out_dir]
+    first (preserving every non-asset file), the encrypted assets are decrypted
+    in place, and each [System.json]'s [hasEncryptedImages]/[hasEncryptedAudio]
+    flags are cleared so the copy is playable as-is. When [mirror] is [false]
+    only the decrypted assets are written (assets-only mode). *)
 
 val mkdir_p : string -> unit
 (** [mkdir_p dir] creates [dir] and parents (like [mkdir -p]); no-op if it

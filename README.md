@@ -94,11 +94,18 @@ rpgm-decrypt ./MyGame
 # pick your own output folder
 rpgm-decrypt ./MyGame ./decrypted
 
+# only the decrypted assets, not a full game copy
+rpgm-decrypt ./MyGame --assets-only
+
 # look but don't write anything (see what it WOULD do)
 rpgm-decrypt ./MyGame --dry-run
 ```
 
-That's it. Point it at the game, get a clean mirror tree of decrypted files out.
+That's it. By default you get a **full, ready-to-run copy of the game**: every
+file is mirrored into the output folder, the encrypted assets are decrypted in
+place (`.rpgmvp`/`.png_` → `.png`, etc.), and `System.json`'s encryption flags
+are cleared — so the copy just runs, with all the `.json`/`.txt`/script files
+left intact. Want only the decrypted media instead? Add `--assets-only`.
 
 ### 🪟 Easiest way on Windows (no terminal)
 
@@ -108,8 +115,10 @@ helper, **`decrypt.bat`**:
 1. Download `rpgm-decrypt-windows-x64.zip` and **extract the whole folder**
    (keep `rpgm-decrypt.exe`, `zlib1.dll` and `decrypt.bat` together).
 2. **Drag your game folder onto `decrypt.bat`.**
-3. Done — the decrypted files appear in a new folder next to your game, named
-   `<your-game>-decrypted`.
+3. Done — a full, ready-to-run decrypted copy of the game appears in a new
+   folder next to your game, named `<your-game>-decrypted`. Everything else
+   (`.json`, `.txt`, scripts, the exe) is copied across untouched, so you can
+   run or edit the copy directly.
 
 No install, no typing. (`zlib1.dll` is just the standard compression library
 Windows needs to read `.pak` archives — keep it next to the `.exe`.)
@@ -148,6 +157,7 @@ When you don't pass a key, rpgm-decrypt looks for it the way the engine stores i
 | `--password <hex32>` | — | One key, 32 hex chars (16 bytes). |
 | `--password-file <path>` | — | Newline-separated candidate keys; first that works wins. |
 | `--vxace-seed <8hex>` | — | RPG Maker VX Ace master-seed, instead of an auto key. |
+| `--assets-only` | off | Write only the decrypted assets, not a full game copy. |
 | `--log-format human\|json` | `human` | Per-file progress on stderr (`json` = one NDJSON event per line). |
 | `--report-format human\|json` | `human` | Final summary on stdout. |
 | `--dry-run` | off | Walk + detect + classify, but write **nothing**. |

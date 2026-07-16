@@ -270,6 +270,7 @@ let test_report () =
         key;
         key_source = "test";
         dry_run = false;
+        mirror = false;
         on_event = (fun _ -> ());
       }
   in
@@ -301,6 +302,7 @@ let test_report () =
         key;
         key_source = "test";
         dry_run = false;
+        mirror = false;
         on_event = (fun _ -> ());
       }
   in
@@ -473,6 +475,104 @@ let test_log () =
   check "log json MV:2" (contains j "\"MV\":2");
   check "log json scanned:3" (contains j "\"scanned\":3")
 
+(* ---- mirror mode (full playable copy) -------------------------------- *)
+let test_mirror () =
+  let root = Filename.temp_dir "rpgm" "mirror" in
+  let game = Filename.concat root "game" in
+  let www = Filename.concat game "www" in
+  let js = Filename.concat www "js" in
+  let img = Filename.concat www "img" in
+  let data = Filename.concat www "data" in
+  Report.mkdir_p js;
+  Report.mkdir_p img;
+  Report.mkdir_p data;
+  (* System.json with the key AND encryption flags set to true *)
+  Io.write_file (Filename.concat js "System.json")
+    (Bytes.of_string
+       {|{ "encryptionKey": "deadbeef00112233445566778899aabb", "hasEncryptedImages": true, "hasEncryptedAudio": true }|});
+  (* an extraneous non-asset file that must be copied verbatim *)
+  let map_body = Bytes.of_string {|{"events":[1,2,3],"note":"keep me"}|} in
+  Io.write_file (Filename.concat data "Map001.json") map_body;
+  let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
+  let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452AABBCC" in
+  Io.write_file
+    (Filename.concat img "Hero.png_")
+    (Crypto.xor_transform key png);
+  (* also a .rpgmvp asset (this codebase's model: whole-file cyclic XOR) —
+     must be renamed to .png in the copy, not left as .rpgmvp *)
+  Io.write_file
+    (Filename.concat img "Actor1.rpgmvp")
+    (Crypto.xor_transform key png);
+  let out = Filename.concat root "out" in
+  let summary =
+    Report.run
+      {
+        Report.game_dir = game;
+        out_dir = out;
+        key;
+        key_source = "test";
+        dry_run = false;
+        mirror = true;
+        on_event = (fun _ -> ());
+      }
+  in
+  check "mirror failed=0" (summary.Types.failed_count = 0);
+  let out_www = Filename.concat out "www" in
+  (* extraneous file copied byte-for-byte *)
+  let map_out =
+    Filename.concat (Filename.concat out_www "data") "Map001.json"
+  in
+  check "mirror copies extraneous json" (Sys.file_exists map_out);
+  if Sys.file_exists map_out then
+    check_bytes "mirror extraneous untouched" map_body (Io.read_file map_out);
+  (* asset decrypted *)
+  let hero = Filename.concat (Filename.concat out_www "img") "Hero.png" in
+  check "mirror Hero.png exists" (Sys.file_exists hero);
+  if Sys.file_exists hero then
+    check_bytes "mirror roundtrip" png (Io.read_file hero);
+  (* stale encrypted twin removed *)
+  let hero_enc = Filename.concat (Filename.concat out_www "img") "Hero.png_" in
+  check "mirror stale twin removed" (not (Sys.file_exists hero_enc));
+  (* .rpgmvp renamed to .png, and its encrypted twin removed *)
+  let actor_png =
+    Filename.concat (Filename.concat out_www "img") "Actor1.png"
+  in
+  let actor_enc =
+    Filename.concat (Filename.concat out_www "img") "Actor1.rpgmvp"
+  in
+  check "mirror rpgmvp -> png" (Sys.file_exists actor_png);
+  check "mirror rpgmvp twin removed" (not (Sys.file_exists actor_enc));
+  (* System.json encryption flags cleared *)
+  let sys_out =
+    Bytes.to_string
+      (Io.read_file (Filename.concat (Filename.concat out_www "js") "System.json"))
+  in
+  check "mirror clears hasEncryptedImages"
+    (contains sys_out "\"hasEncryptedImages\": false");
+  check "mirror clears hasEncryptedAudio"
+    (contains sys_out "\"hasEncryptedAudio\": false");
+  check "mirror keeps encryptionKey" (contains sys_out "encryptionKey");
+  (* assets-only mode does NOT copy the extraneous file *)
+  let out2 = Filename.concat root "out-assets" in
+  let _ =
+    Report.run
+      {
+        Report.game_dir = game;
+        out_dir = out2;
+        key;
+        key_source = "test";
+        dry_run = false;
+        mirror = false;
+        on_event = (fun _ -> ());
+      }
+  in
+  let map_out2 =
+    Filename.concat
+      (Filename.concat (Filename.concat out2 "www") "data")
+      "Map001.json"
+  in
+  check "assets-only skips extraneous json" (not (Sys.file_exists map_out2))
+
 let () =
   test_crypto ();
   test_crypto_more ();
@@ -485,6 +585,7 @@ let () =
   test_mz_multi ();
   test_log ();
   test_report ();
+  test_mirror ();
   Printf.printf "\n===== %d checks, %d passed, %d failed =====\n" !total !passed
     (List.length !fails);
   List.iter (fun n -> Printf.printf "  FAIL %s\n" n) (List.rev !fails);
