@@ -41,10 +41,14 @@ let bytes_of_hex (hex : string) : bytes =
 let usage () =
   print_string
     "Usage: rpgm-decrypt [OPTIONS] <game_dir> [<out_dir>]\n\n\
+     By default it writes a full, ready-to-run copy of the game: every file is\n\
+     mirrored into <out_dir>, the encrypted assets are decrypted in place, and\n\
+     System.json's encryption flags are cleared.\n\n\
      Options:\n\
     \  --password <hex>             32-char hex key for MV/MZ\n\
     \  --password-file <path>       newline-separated candidate keys\n\
     \  --vxace-seed <8hex>          RPG Maker VX Ace master-seed (8 hex chars)\n\
+    \  --assets-only                write only decrypted assets, not a full copy\n\
     \  --log-format human|json      stderr log format (default human)\n\
     \  --report-format human|json   final stdout report (default human)\n\
     \  --dry-run                    walk + classify, write nothing\n\
@@ -58,6 +62,7 @@ let () =
   let n = Array.length argv in
   let help = ref false and version = ref false and quiet = ref false in
   let dry_run = ref false and err_num = ref 0 in
+  let mirror = ref true in
   let log_fmt = ref Log.Human and rep_fmt = ref Log.Human in
   let password = ref None
   and password_file = ref None
@@ -81,6 +86,8 @@ let () =
     | "--version" -> version := true
     | "--quiet" -> quiet := true
     | "--dry-run" -> dry_run := true
+    | "--assets-only" -> mirror := false
+    | "--mirror" -> mirror := true
     | "--log-format" -> (
         match need_val "--log-format" with
         | Some v -> (
@@ -122,7 +129,7 @@ let () =
   let pos = List.rev !pos in
 
   if !version then begin
-    Printf.printf "rpgm-decrypt 0.3.12\n";
+    Printf.printf "rpgm-decrypt 0.3.13\n";
     Printf.printf "  engine support: XP / VX / VX Ace / MV / MZ\n";
     Printf.printf "  built on OCaml %s\n" Sys.ocaml_version;
     exit !err_num
@@ -236,6 +243,7 @@ let () =
             key = key_bytes;
             key_source = src;
             dry_run = !dry_run;
+            mirror = !mirror;
             on_event = (if !quiet then fun _ -> () else Log.emit !log_fmt);
           }
       in
