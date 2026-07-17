@@ -9,9 +9,11 @@ type key_result =
       (** Outcome of discovery: [Found (key, source)] or [NotFound reason]. *)
 
 val discover : string -> key_result
-(** [discover game_dir] searches the standard locations (www/js/System.json ->
-    www/data/System.json -> www/js/rpg_core.js -> sweep www/js -> sweep www) for
-    a 32-hex-char encryption key. *)
+(** [discover game_dir] searches the standard locations for a 32-hex-char
+    encryption key, covering both the classic MV layout (assets under [www/])
+    and the newer MZ layout (assets directly in [game_dir]): js/System.json ->
+    data/System.json -> js/rpg_core.js (each with and without the [www/]
+    prefix), then a recursive [*.js] sweep of the whole game dir. *)
 
 val discover_with_wordlist : string -> string array -> key_result
 (** [discover_with_wordlist game_dir wordlist] validates each 32-hex candidate

@@ -43,6 +43,21 @@ let rename_by_kind (rel_path : string) (kind : string) : string =
       if dir = "" || dir = "." then base else dir ^ "/" ^ base
   | _ -> rel_path
 
+(* Map an encrypted extension to its real one by name alone (no content), for
+   files that pass through undecrypted (e.g. empty placeholder assets) but must
+   still be renamed so the engine finds them. Returns [None] if the extension
+   is not an encrypted asset extension. *)
+let rename_encrypted_ext (rel_path : string) : string option =
+  let ext = String.lowercase_ascii (Filename.extension rel_path) in
+  let real =
+    match ext with
+    | ".png_" | ".rpgmvp" -> Some "png"
+    | ".ogg_" | ".rpgmvo" -> Some "ogg"
+    | ".m4a_" | ".rpgmvm" -> Some "m4a"
+    | _ -> None
+  in
+  match real with Some kind -> Some (rename_by_kind rel_path kind) | None -> None
+
 (* ---- path containment (Zip-Slip defence, C-2) ------------------------- *)
 let path_combine (a : string) (b : string) : string =
   if String.length b > 0 && b.[0] = '/' then b
@@ -311,7 +326,24 @@ let run (cfg : config) : Types.run_summary =
                   (Log.Decrypt (d.Types.abs_path, real_out_abs, "MV"))
               end
               else begin
-                if not cfg.dry_run then copy_through d.Types.abs_path out_abs;
+                (* Not decrypted (already plaintext or empty placeholder). In
+                   mirror mode, if it still carries an encrypted extension
+                   (.rpgmvp/.png_/…), rename it so the engine finds the asset
+                   and drop the stale encrypted-named twin. *)
+                let renamed =
+                  if cfg.mirror then rename_encrypted_ext out_rel else None
+                in
+                (match renamed with
+                | Some real_rel when real_rel <> out_rel ->
+                    let real_abs = path_combine cfg.out_dir real_rel in
+                    if not cfg.dry_run then begin
+                      write_all_bytes real_abs bytes;
+                      if Sys.file_exists out_abs then
+                        (try Sys.remove out_abs with _ -> ())
+                    end
+                | _ ->
+                    if not cfg.dry_run then
+                      copy_through d.Types.abs_path out_abs);
                 summary :=
                   Types.tally (Types.PassedThrough (out_rel, Types.MV)) !summary;
                 cfg.on_event (Log.PassThrough d.Types.abs_path)

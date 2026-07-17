@@ -65,15 +65,6 @@ let try_js_scan (path : string) : key_result =
 
 let is_found = function Found _ -> true | _ -> false
 
-(* *.js directly in [dir] (one level). *)
-let js_in_dir (dir : string) : string list =
-  if Sys.file_exists dir && try Sys.is_directory dir with _ -> false then
-    Sys.readdir dir |> Array.to_list
-    |> List.filter (fun n ->
-        Filename.check_suffix (String.lowercase_ascii n) ".js")
-    |> List.map (Filename.concat dir)
-  else []
-
 (* *.js anywhere under [dir]. *)
 let rec js_recursive (dir : string) : string list =
   if Sys.file_exists dir && try Sys.is_directory dir with _ -> false then
@@ -86,46 +77,56 @@ let rec js_recursive (dir : string) : string list =
         else [])
   else []
 
-(** Full priority order: www/js/System.json -> www/data/System.json ->
-    www/js/rpg_core.js -> sweep www/js -> sweep all of www. *)
+(** Full priority order, covering both the classic MV layout (assets under
+    [www/]) and the newer MZ layout (assets directly in the game dir):
+    js/System.json -> data/System.json -> js/rpg_core.js, each tried with and
+    without the [www/] prefix, then a recursive [*.js] sweep of the whole tree. *)
 let discover (game_dir : string) : key_result =
-  let www_root = Filename.concat game_dir "www" in
-  let www_js = Filename.concat www_root "js" in
-  let www_js_system = Filename.concat www_js "System.json" in
-  let www_rpg_core = Filename.concat www_js "rpg_core.js" in
-  let www_data_sys =
-    Filename.concat (Filename.concat www_root "data") "System.json"
+  (* Candidate roots: the www/ subdir (if present) first, then the game dir. *)
+  let roots =
+    let www = Filename.concat game_dir "www" in
+    if Sys.file_exists www && (try Sys.is_directory www with _ -> false) then
+      [ www; game_dir ]
+    else [ game_dir ]
   in
-  match try_system_json www_js_system with
+  let system_jsons =
+    List.concat_map
+      (fun root ->
+        [
+          Filename.concat (Filename.concat root "js") "System.json";
+          Filename.concat (Filename.concat root "data") "System.json";
+        ])
+      roots
+  in
+  let rpg_cores =
+    List.map
+      (fun root -> Filename.concat (Filename.concat root "js") "rpg_core.js")
+      roots
+  in
+  let rec try_each f = function
+    | [] -> NotFound "not found"
+    | x :: rest -> (
+        match f x with Found _ as r -> r | NotFound _ -> try_each f rest)
+  in
+  (* First: every System.json location. Then: the rpg_core.js literal. *)
+  match try_each try_system_json system_jsons with
   | Found _ as r -> r
   | NotFound _ -> (
-      match try_system_json www_data_sys with
+      match try_each try_js_scan rpg_cores with
       | Found _ as r -> r
-      | NotFound _ -> (
-          match try_js_scan www_rpg_core with
-          | Found _ as r -> r
-          | NotFound _ ->
-              if not (Sys.file_exists www_root) then
-                NotFound "no www/ directory in game_dir"
-              else begin
-                let found =
-                  ref (NotFound "no encryption key found in www/js or www/data")
-                in
-                List.iter
-                  (fun f ->
-                    match try_js_scan f with
-                    | Found _ as r -> found := r
-                    | NotFound _ -> ())
-                  (js_in_dir www_js);
-                if not (is_found !found) then
-                  List.iter
-                    (fun f ->
-                      match try_js_scan f with
-                      | Found _ as r -> found := r
-                      | NotFound _ -> ())
-                    (js_recursive www_root);
-                !found
-              end))
+      | NotFound _ ->
+          (* Last resort: sweep every .js in the whole game dir. *)
+          let found =
+            ref (NotFound "no encryption key found in the game dir")
+          in
+          List.iter
+            (fun f ->
+              if not (is_found !found) then
+                match try_js_scan f with
+                | Found _ as r -> found := r
+                | NotFound _ -> ())
+            (js_recursive game_dir);
+          !found)
 
 (* First reasonable encrypted asset to validate a candidate key against. *)
 let first_encrypted_sample (game_dir : string) : bytes option =

@@ -77,6 +77,38 @@ let test_mv () =
   | Mv.Unsure _ -> check "mv wrong key -> Unsure" true
   | _ -> check "mv wrong key -> Unsure" false
 
+(* ---- MV real RPG Maker format: 16-byte header + first-16 XOR --------- *)
+let test_mv_real_format () =
+  let key = bytes_of_hex "d41d8cd98f00b204e9800998ecf8427e" in
+  (* a plaintext PNG longer than 16 bytes so we exercise header + tail *)
+  let png =
+    bytes_of_hex
+      "89504E470D0A1A0A0000000D49484452000000100000001008060000001FF3FF61"
+  in
+  (* build the encrypted asset exactly as RPG Maker does *)
+  let hdr = bytes_of_hex "5250474d560000000003010000000000" in
+  let enc_body = Bytes.copy png in
+  for i = 0 to 15 do
+    Bytes.set enc_body i
+      (Char.chr
+         (Char.code (Bytes.get enc_body i) lxor Char.code (Bytes.get key i)))
+  done;
+  let cipher = Bytes.cat hdr enc_body in
+  check "mv real: header detected"
+    (not (Crypto.looks_like_plaintext cipher));
+  (match Mv.decrypt key cipher with
+  | Mv.Decrypted (k, b) ->
+      check "mv real: kind png" (k = "png");
+      check "mv real: header stripped (size)" (Bytes.length b = Bytes.length png);
+      check_bytes "mv real: exact roundtrip" png b
+  | _ -> check "mv real: decrypted outcome" false);
+  (* an RPGMZ-headered asset must be handled the same way *)
+  let hdr_mz = bytes_of_hex "5250474d5a0000000003010000000000" in
+  let cipher_mz = Bytes.cat hdr_mz enc_body in
+  match Mv.decrypt key cipher_mz with
+  | Mv.Decrypted (_, b) -> check_bytes "mv real: RPGMZ header roundtrip" png b
+  | _ -> check "mv real: RPGMZ decrypted" false
+
 (* ---- XP / VX (shared Rgssad_core) ------------------------------------ *)
 let build_rgssad ver =
   let name = "Graphics/Hero.png" in
@@ -426,7 +458,17 @@ let test_key_discovery () =
   check "kd empty wordlist rejected"
     (match Key_discovery.discover_with_wordlist root [||] with
     | Key_discovery.NotFound _ -> true
-    | _ -> false)
+    | _ -> false);
+  (* newer MZ layout: data/System.json directly in game dir, no www/ *)
+  let mz_root = Filename.temp_dir "rpgm" "kdmz" in
+  Report.mkdir_p (Filename.concat mz_root "data");
+  Io.write_file
+    (Filename.concat (Filename.concat mz_root "data") "System.json")
+    (Bytes.of_string {|{ "encryptionKey": "deadbeef00112233445566778899aabb" }|});
+  match Key_discovery.discover mz_root with
+  | Key_discovery.Found (b, _) ->
+      check "kd MZ root layout (no www)" (Bytes.get b 0 = '\xde')
+  | _ -> check "kd MZ root layout found" false
 
 (* ---- MZ multi-entry order ------------------------------------------- *)
 let test_mz_multi () =
@@ -577,6 +619,7 @@ let () =
   test_crypto ();
   test_crypto_more ();
   test_mv ();
+  test_mv_real_format ();
   test_xp_vx ();
   test_classify ();
   test_key_discovery ();

@@ -31,15 +31,50 @@ let plaintext_kind_to_string = function
   | Jpg -> "jpg"
   | Unknown -> "bin"
 
-(** Decrypt a buffer believed to be MV/MZ XOR-encrypted. Already-plaintext
-    buffers are returned untouched (identity copy). *)
+(* The real RPG Maker MV/MZ asset format: a 16-byte fake header
+   ("RPGMV\000..." — Crypto.magic_mv_header) prepended to the original file,
+   whose first 16 bytes were XOR-ed byte-for-byte with the 16-byte key. The rest
+   of the file is untouched plaintext. Decryption strips the header and un-XORs
+   those first 16 bytes. *)
+let header_len = 16
+let encrypted_prefix_len = 16
+
+(* Does [cipher] start with the 16-byte RPGMV/RPGMZ fake header? *)
+let has_fake_header (cipher : bytes) : bool =
+  Bytes.length cipher >= header_len
+  && (Crypto.is_mv_magic_header cipher || Crypto.is_mz_magic_header cipher)
+
+(* Strip the fake header and un-XOR the first 16 payload bytes with [key]. *)
+let decrypt_header_scheme (key : bytes) (cipher : bytes) : bytes =
+  let body = Bytes.sub cipher header_len (Bytes.length cipher - header_len) in
+  let klen = Bytes.length key in
+  let n = min encrypted_prefix_len (Bytes.length body) in
+  for i = 0 to n - 1 do
+    let v =
+      Char.code (Bytes.get body i) lxor Char.code (Bytes.get key (i mod klen))
+    in
+    Bytes.set body i (Char.chr v)
+  done;
+  body
+
+(** Decrypt a buffer believed to be an MV/MZ asset. Already-plaintext buffers
+    are returned untouched (identity copy). *)
 let decrypt (key : bytes) (cipher : bytes) : decrypt_outcome =
   if Bytes.length key = 0 then invalid_arg "MV key must not be empty";
   if Bytes.length cipher = 0 then Plaintext ("bin", cipher)
     (* empty -> pass through *)
+  else if has_fake_header cipher then begin
+    (* real RPG Maker scheme: header + first-16-XOR *)
+    let plain = decrypt_header_scheme key cipher in
+    let k = classify_plaintext plain in
+    if k = Unknown then Unsure plain
+    else Decrypted (plaintext_kind_to_string k, plain)
+  end
   else if Crypto.looks_like_plaintext cipher then
     Plaintext (plaintext_kind_to_string (classify_plaintext cipher), cipher)
   else begin
+    (* no fake header and not obviously plaintext: fall back to whole-file
+       cyclic XOR (covers simple/older or repacked assets) *)
     let plain = Crypto.xor_transform key cipher in
     let k = classify_plaintext plain in
     if k = Unknown then Unsure plain
