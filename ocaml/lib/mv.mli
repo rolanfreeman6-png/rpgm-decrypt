@@ -1,7 +1,10 @@
-(** RPG Maker MV/MZ individual-asset XOR decryption.
+(** RPG Maker MV/MZ individual-asset decryption.
 
-    The scheme is [cipher[i] = plain[i] xor key[i mod keyLength]] (symmetric).
-    Already-plaintext assets are returned untouched. *)
+    The real scheme prepends a 16-byte fake header ("RPGMV"/"RPGMZ" + id bytes)
+    to the original file, whose first 16 bytes are XOR-ed byte-for-byte with the
+    16-byte key; the rest is untouched plaintext. Decryption strips the header
+    and un-XORs those 16 bytes. Buffers with no fake header fall back to
+    whole-file cyclic XOR; already-plaintext assets are returned untouched. *)
 
 type decrypt_outcome =
   | Plaintext of string * bytes
