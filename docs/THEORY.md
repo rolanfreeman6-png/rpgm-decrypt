@@ -88,35 +88,53 @@ apply MV decryption per entry.
 
 ## 5. RGSSAD walking
 
-XP / VX / VX Ace archives: file entries are keyed by offset/size table;
-the *filenames* are XOR-obfuscated with a key derived from the
-archive's own header.
+XP / VX / VX Ace archives (`RGSSAD`) are a single blob of concatenated,
+XOR-encrypted entries. There is no offset/size table: the archive is a
+*stream* that must be read front-to-back, and every field — filename
+length, filename bytes, payload size, and the payload itself — is
+encrypted with a key that rolls forward as you read.
 
-Concretely:
+- Header magic: `"RGSSAD\x00"` (7 bytes) + 1 version byte. Only two
+  versions exist in the wild: `0x01` (XP `.rgssad` **and** VX `.rgss2a` —
+  byte-for-byte the same format) and `0x03` (VX Ace). There is no `0x02`.
+- Reference implementation: uuksu/RPGMakerDecrypter
+  (`RGSSADv1.cs` / `RGSSADv3.cs`, GPL-3.0) — the canonical description of
+  this format.
 
-- Header magic: `"RGSSAD\x00"` (7 bytes) + 1 version byte (`0x01` XP,
-  `0x02` VX, `0x03` VX Ace).
-- Entry layouts (per the publicly documented algorithm in
-  Petschko/RPG-Maker-MV-Decrypter's `Encryption.java`, MIT-licensed):
+### v1 — XP `.rgssad` / VX `.rgss2a` (`0x01`)
 
-  - **XP / VX** (`0x01` / `0x02`): each entry is
-    `size(4) | offset(4) | name_len(4) | name(name_len)`.
-    `name` is XOR-obfuscated with the 7-byte RGSSAD magic (cycling).
-    The end of the table is a sentinel record (XP: `name_len = 0`;
-    VX: `size = 0 && name_len = 0`).
-  - **VX Ace** (`0x03`): a 4-byte master seed follows the header at byte 8;
-    `masterKey = seed * 9 + 3`. Each entry is
-    `offset(4) | size(4) | entry_key(4) | name_len(4) | name(name_len)`,
-    where all four u32 fields are XOR-decrypted with `masterKey`, `name`
-    is XOR-decrypted with the 4 LE bytes of `masterKey` (cycling), and the
-    loop ends when a decrypted `offset` is `0`.
+A rolling 32-bit key is seeded at `0xDEADCAFE` and advanced by
+`key = (key * 7 + 3) mod 2^32` after **every** u32 field read and after
+**every** filename byte. Each entry, in order, is:
 
-For **XP / VX** the payload bytes are zlib-deflated and otherwise
-unencrypted; our walker exposes a table of contents (written as
-`<archive>.entries.txt`) and leaves inflate to the user's toolchain.
-For **VX Ace** each entry's payload *is* encrypted with a per-entry
-rotating key (`tempKey = tempKey * 7 + 3` every 4 bytes), which we
-decrypt and write out per entry.
+```
+name_len : u32   XOR key            (then advance key)
+name     : name_len bytes           (each byte XOR (key & 0xFF), advance key per byte)
+data_len : u32   XOR key            (then advance key)
+data     : data_len bytes           (payload — see below)
+```
+
+The payload key is the value of the rolling key *captured immediately
+after reading `data_len`*. The payload is decrypted by XORing against the
+little-endian bytes of that key, advancing the key with the same
+`*7+3` rule once every 4 payload bytes. The stream ends when the fields
+would run past EOF; a well-formed archive lands exactly on the last
+entry's final payload byte.
+
+Unlike VX Ace, the v1 payload is *not* separately zlib-deflated by the
+format — the decrypted bytes are the original file (`.rxdata` / `.rvdata`
+Ruby `Marshal` data, PNGs, etc.), which we write out per entry.
+
+### v3 — VX Ace (`0x03`)
+
+A 4-byte master seed follows the header at byte 8;
+`masterKey = seed * 9 + 3`. Each entry is
+`offset(4) | size(4) | entry_key(4) | name_len(4) | name(name_len)`,
+where all four u32 fields are XOR-decrypted with `masterKey`, `name` is
+XOR-decrypted with the 4 LE bytes of `masterKey` (cycling), and the loop
+ends when a decrypted `offset` is `0`. Each entry's payload is encrypted
+with a per-entry rotating key (`tempKey = tempKey * 7 + 3` every 4 bytes),
+which we decrypt and write out per entry.
 
 ---
 
@@ -169,11 +187,12 @@ We mirror the input structure. If game_dir is:
         Theme.ogg        (decrypted)
 ```
 
-For XP / VX / VX Ace archives a `<archive>.entries.txt` table-of-contents
-file is written alongside the mirror tree. The per-run summary is printed
-to **stdout** (`--report-format human|json`); per-file progress events go
-to **stderr** (`--log-format human|json`). No extra files are written to
-`out_dir` beyond the decrypted assets and the `.entries.txt` manifests.
+For XP / VX / VX Ace archives every entry is decrypted and written out to
+its in-archive path under the mirror tree (e.g. `Data/Actors.rvdata2`),
+so the archive is fully expanded rather than merely listed. The per-run
+summary is printed to **stdout** (`--report-format human|json`); per-file
+progress events go to **stderr** (`--log-format human|json`). No extra
+bookkeeping files are written to `out_dir` beyond the decrypted assets.
 
 Unencrypted files are detected (`RPGMV`/`RPGMZ` bytes absent, magic
 pre-XOR-decrypt matches PNG/OGG/M4A/WebP/JPG signature) and copied

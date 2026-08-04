@@ -5,9 +5,9 @@
     association list (the key set is small and fixed). *)
 
 type format =
-  | XP  (** RPG Maker XP, archive [.rgssad] version 0x01. *)
-  | VX  (** RPG Maker VX, archive [.rgssad] version 0x02 or [.rgss2a]. *)
-  | VXAce  (** RPG Maker VX Ace, archive [.rgss3a] version 0x03. *)
+  | XP  (** RPG Maker XP, archive [.rgssad] (RGSSAD v1, version 0x01). *)
+  | VX  (** RPG Maker VX, archive [.rgss2a] (RGSSAD v1, version 0x01 — same as XP). *)
+  | VXAce  (** RPG Maker VX Ace, archive [.rgss3a] (RGSSAD v3, version 0x03). *)
   | MV  (** RPG Maker MV, individual XOR-encrypted assets. *)
   | MZ  (** RPG Maker MZ, [.pak] ZIP of MV-scheme encrypted assets. *)
 

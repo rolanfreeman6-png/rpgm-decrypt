@@ -16,15 +16,13 @@ let classify (abs_path : string) : Types.format option =
       else -1
     in
     match ext with
+    (* `.rgssad` (XP) and `.rgss2a` (VX) are the SAME RGSSAD v1 format; the
+       version byte only distinguishes v1 from VX Ace's v3. Trust the version
+       byte for v3 detection, else fall back to the extension's XP/VX label. *)
     | ".rgssad" -> (
-        if Bytes.length first_bytes < 8 then Some Types.XP
-        else
-          match ver_at7 () with
-          | 0x01 -> Some Types.XP
-          | 0x02 -> Some Types.VX
-          | 0x03 -> Some Types.VXAce
-          | _ -> Some Types.XP)
-    | ".rgss2a" -> Some Types.VX
+        match ver_at7 () with 0x03 -> Some Types.VXAce | _ -> Some Types.XP)
+    | ".rgss2a" -> (
+        match ver_at7 () with 0x03 -> Some Types.VXAce | _ -> Some Types.VX)
     | ".rgss3a" -> Some Types.VXAce
     (* A `.pak` is an RPG Maker MZ archive only if it is actually a ZIP. NW.js /
        Chromium games ship engine `.pak` files (locales/*.pak, resources.pak,
@@ -38,8 +36,6 @@ let classify (abs_path : string) : Types.format option =
         if Crypto.is_rgssad_magic first_bytes && Bytes.length first_bytes >= 8
         then
           match ver_at7 () with
-          | 0x01 -> Some Types.XP
-          | 0x02 -> Some Types.VX
           | 0x03 -> Some Types.VXAce
           | _ -> Some Types.XP
         else if Crypto.is_zip_magic first_bytes then Some Types.MZ

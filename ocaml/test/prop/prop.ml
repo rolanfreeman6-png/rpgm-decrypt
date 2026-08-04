@@ -94,8 +94,7 @@ let p_parsers_total =
     (arb_bytes_upto 4096) (fun b ->
       never_throws Xp.parse b && never_throws Vx.parse b
       && never_throws Vxace.parse b
-      && never_throws (Rgssad_core.parse 0x01 Rgssad_core.NameLenZero) b
-      && never_throws (Rgssad_core.parse 0x02 Rgssad_core.SizeAndNameZero) b)
+      && never_throws Rgssad_core.parse b)
 
 let p_mv_decrypt_total =
   QCheck2.Test.make ~name:"Mv.decrypt never throws on arbitrary bytes"

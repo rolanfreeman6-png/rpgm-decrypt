@@ -129,7 +129,7 @@ let () =
   let pos = List.rev !pos in
 
   if !version then begin
-    Printf.printf "rpgm-decrypt 0.3.14\n";
+    Printf.printf "rpgm-decrypt 0.3.15\n";
     Printf.printf "  engine support: XP / VX / VX Ace / MV / MZ\n";
     Printf.printf "  built on OCaml %s\n" Sys.ocaml_version;
     exit !err_num
@@ -227,28 +227,58 @@ let () =
     | None, None, None -> Key_discovery.discover game_dir
   in
 
-  match key_result with
-  | Key_discovery.NotFound why ->
-      Printf.eprintf "error: no encryption key recovered (%s)\n" why;
-      Printf.eprintf
-        "       supply --password <hex32>, --password-file <list>, or \
-         --vxace-seed <8hex>\n";
-      exit 4
-  | Key_discovery.Found (key_bytes, src) ->
-      let summary =
-        Report.run
-          {
-            Report.game_dir;
-            out_dir;
-            key = key_bytes;
-            key_source = src;
-            dry_run = !dry_run;
-            mirror = !mirror;
-            on_event = (if !quiet then fun _ -> () else Log.emit !log_fmt);
-          }
-      in
-      Crypto.zero_fill key_bytes;
-      (match !rep_fmt with
+  (* RGSSAD archives (XP/VX/VX Ace) carry their own key material and need no
+     external key, so a key-discovery miss must not block an RGSS-only game.
+     Detect what the tree actually contains and, if there is any RGSS archive,
+     proceed with a placeholder key (ignored by the RGSS decoders). MV/MZ assets
+     present without a key still fail correctly and surface in the report. *)
+  let detected = Walk.walk game_dir in
+  let is_rgss = function
+    | Types.XP | Types.VX | Types.VXAce -> true
+    | Types.MV | Types.MZ -> false
+  in
+  let has_rgss =
+    List.exists (fun (d : Types.detected_file) -> is_rgss d.Types.format) detected
+  in
+  let needs_key =
+    List.exists
+      (fun (d : Types.detected_file) -> not (is_rgss d.Types.format))
+      detected
+  in
+
+  let key_bytes, src =
+    match key_result with
+    | Key_discovery.Found (k, s) -> (k, s)
+    | Key_discovery.NotFound why ->
+        if has_rgss then
+          ( Bytes.make 16 '\000',
+            if needs_key then
+              Printf.sprintf
+                "RGSS built-in key (no MV/MZ key: %s — those assets will fail)"
+                why
+            else "RGSS built-in key (no external key needed)" )
+        else begin
+          Printf.eprintf "error: no encryption key recovered (%s)\n" why;
+          Printf.eprintf
+            "       supply --password <hex32>, --password-file <list>, or \
+             --vxace-seed <8hex>\n";
+          exit 4
+        end
+  in
+  let summary =
+    Report.run
+      {
+        Report.game_dir;
+        out_dir;
+        key = key_bytes;
+        key_source = src;
+        dry_run = !dry_run;
+        mirror = !mirror;
+        on_event = (if !quiet then fun _ -> () else Log.emit !log_fmt);
+      }
+  in
+  Crypto.zero_fill key_bytes;
+  (match !rep_fmt with
       | Log.Json -> print_endline (run_summary_to_json summary)
       | Log.Human -> print_endline (run_summary_human summary));
       if summary.Types.failed_count = 0 then exit 0 else exit 5

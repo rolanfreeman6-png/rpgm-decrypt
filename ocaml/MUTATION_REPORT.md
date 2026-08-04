@@ -8,8 +8,11 @@ in-memory copy). A mutation is **killed** if either suite exits non-zero.
 
 ## Methodology
 
-- Driver: `mutate.ps1` (kept out of the repo; reproducible from this report).
-- Oracle: `dune exec test/test.exe` (behavioural, 72 checks) **and**
+- Driver: a small `sed`-based shell script (line-scoped mutation → rebuild →
+  oracle → restore-from-backup; kept out of the repo, reproducible from the
+  mutation table below).
+- Oracle: `dune exec test/test.exe` (behavioural checks — 72 at first-wave
+  time, **92** after the two fixes below grew the suite) **and**
   `dune exec test/prop/prop.exe` (QCheck2, 12 properties, seed 42).
 - Each mutation is a single literal source edit; the driver verifies the
   find-string is present (NOT-APPLIED otherwise) and restores the original
@@ -17,7 +20,7 @@ in-memory copy). A mutation is **killed** if either suite exits non-zero.
 - Mutations target the verified pure core: XOR, key derivation, u32 parsing,
   Zip-Slip containment, and the extension dispatcher.
 
-## First wave — 7 mutations
+## First wave — 7 mutations (against the pre-fix 72-check suite)
 
 | # | Mutation | build | test | prop | result |
 |---|----------|------:|-----:|-----:|--------|
@@ -55,19 +58,28 @@ Added 4 behavioural checks to `test/test.ml`:
 - `chooseExt ogg/m4a/jpg kind` — verify each kind maps to its own extension,
   killing M7 and any single-kind mapping swap.
 
-## Second wave — 7 mutations (after the fixes)
+## Second wave — 7 mutations (after the fixes; re-verified against the rewritten code, 92-check + 12-prop oracle)
+
+Re-run against the current (rewritten) source with the grown **92**-check
+behavioural suite + 12 QCheck properties. Exit codes below are the freshly
+measured `test.exe` / `prop.exe` exit statuses (a non-zero exit = mutant
+detected). Each mutated file is restored byte-identical from a backup after its
+run (no leftover `.bak`; the mutation loop leaves no net change to the source).
 
 | # | Mutation | build | test | prop | result |
 |---|----------|------:|-----:|-----:|--------|
 | M1 | `crypto`: xor key index `i mod klen` → `i mod (klen+1)` | 0 | 2 | 1 | KILLED |
 | M2 | `crypto`: xor output size `n` → `n+1` | 0 | 1 | 1 | KILLED |
 | M3 | `vxace_key`: `derive_master_key` `+3` → `+4` | 0 | 1 | 1 | KILLED |
-| M4 | `rgssad_core`: `read_u32_le` byte1 `lsl 8` → `lsl 16` | 0 | 1 | 0 | KILLED |
-| M5 | `report`: `safe_join` `full = root` → `full = full` | 0 | 2 | 1 | KILLED |
-| M6 | `dispatch`: `choose_output_extension` `png` → `.pngx` | 0 | 0 | 1 | KILLED |
-| M7 | `dispatch`: `choose_output_extension` `ogg` → `.png` | 0 | 1 | 0 | KILLED |
+| M4 | `rgssad_core`: `read_u32_le` byte1 `lsl 8` → `lsl 16` | 0 | 1 | 1 | KILLED |
+| M5 | `report`: `safe_join` `full = root` → `full = full` | 0 | 1 | 1 | KILLED |
+| M6 | `dispatch`: `choose_output_extension` `png` → `.pngx` | 0 | 1 | 1 | KILLED |
+| M7 | `dispatch`: `choose_output_extension` `ogg` → `.png` | 0 | 1 | 1 | KILLED |
 
 **Mutation score: 7/7 killed (100%)** after the two targeted test additions.
+With the 92-check suite, M4/M6/M7 are now caught by **both** the behavioural
+and the property oracle (in the first wave M4/M7 survived and M6 was caught by
+only one), i.e. the added coverage strictly strengthened detection.
 
 ## Honest scope
 
@@ -76,6 +88,6 @@ equivalent-mutant analysis. It demonstrates the suite catches representative
 operator/bounds/logic mutants on the verified core, and it surfaced (and
 closed) two genuine coverage gaps. The I/O modules (`io`, `walk`, `mz`,
 `report.run`, `key_discovery`) are not mutated here — they are covered by the
-72 behavioural checks + 12 QCheck properties (see the README "Formal
+92 behavioural checks + 12 QCheck properties (see the README "Formal
 verification & guarantees" section); the deductive proofs target the pure
 core, not I/O.

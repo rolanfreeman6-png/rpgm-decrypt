@@ -38,7 +38,7 @@ ocaml/
            + a narrow .mli per module (Gospel specs in crypto/vxace_key/
              rgssad_core/dispatch/report .mli)
   bin/     main.ml                                   (= the CLI module, CLI)
-  test/    test.ml      (72 in-process behavioural checks)
+  test/    test.ml      (92 in-process behavioural checks)
            prop/prop.ml (12 QCheck2 property tests)
   fuzz/    fuzz.ml      (AFL-instrumented fuzz target)
 ```
@@ -60,7 +60,7 @@ opam install qcheck gospel
 
 ```sh
 dune build --profile release               # 0 warnings (strict flags + warn-error)
-dune exec --profile release test/test.exe  # 72 behavioural checks
+dune exec --profile release test/test.exe  # 92 behavioural checks
 dune exec --profile release test/prop/prop.exe  # 12 QCheck2 properties (seed 42)
 dune exec --profile release bin/main.exe -- --help
 dune exec --profile release bin/main.exe -- <game_dir> <out_dir> \
@@ -73,7 +73,7 @@ manifest is `rpgm-decrypt.opam`.
 
 ## Formal verification & guarantees
 
-The 72 in-process behavioural checks are the source of truth, enforced on every
+The 92 in-process behavioural checks are the source of truth, enforced on every
 push; the layers below add static and formal
 guarantees on top of that. Each layer is honestly classified by what it
 actually verifies.
@@ -82,7 +82,7 @@ actually verifies.
 |---|---|---|
 | Narrow `.mli` interfaces | done, verified | Every `lib/` module has a documented public interface; internal helpers are hidden (see commit history). |
 | Strict compiler flags | done, verified | `-w +a-4-40-42-44-45-70 -strict-sequence -strict-formats -principal`, warnings-as-errors in the `release` profile. Build is warning-free (verified via `dune build --verbose`: every command carries `-warn-error +a-…`). |
-| Behavioural tests | done, verified | 72/72 checks pass (crypto, MV, XP/VX, VX Ace, MZ, end-to-end `Report.run`, `safe_join`, Zip-Slip block, `read_u32_le` high bytes, per-kind extension map). |
+| Behavioural tests | done, verified | 92/92 checks pass (crypto, MV, XP/VX, VX Ace, MZ, end-to-end `Report.run`, `safe_join`, Zip-Slip block, `read_u32_le` high bytes, per-kind extension map). |
 | QCheck properties | done, verified | 12/12 properties pass (seed 42): XOR involution + length, hex-key round-trip, `derive_master_key = u32(seed*9+3)` over 2³², `decode_payload` involution, parser/`Mv.decrypt`/`Vxace_key` totality (never throw on arbitrary bytes), `safe_join` containment (Zip-Slip), `choose_output_extension` totality. |
 | Mutation testing | done, verified | 7 directed mutants, 7/7 killed after two coverage-gap fixes (see `MUTATION_REPORT.md`). |
 | Gospel specs | done, type-check-verified locally; clean exit-0 on Linux CI | Specs on the pure core (see below). Gospel 0.3.1 on Windows/mingw crashes with `output_value: not a binary channel` *after* successful type-checking (a text-mode marshal bug); type errors are reported *before* the crash, so a spec is taken as valid when `gospel check`'s only failure is that crash (sanity-checked with a deliberately erroneous spec). The `ocaml-verification` CI job gives a clean exit 0 on Linux. |
@@ -108,8 +108,9 @@ split:
   - `Crypto.xor_transform` (length + per-byte XOR formula), `sub_array_eq`,
     `starts_with`, `hex_nibble` (+ `raises Invalid_argument`), `decode_hex_key`
     (length 16), `is_*_magic` (length lower bound).
-  - `Rgssad_core.read_u32_le` (LE formula), `xor_decode_name`, `parse`
-    (total — no `raises` clause; `end_pos` within buffer), `read_entry` (clamped).
+  - `Rgssad_core.read_u32_le` (LE formula), `parse` (total — no `raises`
+    clause; `end_pos` within buffer), `read_entry` (clamped),
+    `decrypt_data` (length-preserving: `bytes_length r = bytes_length cipher`).
   - `Vxace_key.derive_master_key` (`u32 (seed*9+3)`), `decode_filename`,
     `decode_payload` (length).
   - `Report.safe_join` (Zip-Slip containment: any `Some` result is the

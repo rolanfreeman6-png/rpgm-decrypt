@@ -109,37 +109,52 @@ let test_mv_real_format () =
   | Mv.Decrypted (_, b) -> check_bytes "mv real: RPGMZ header roundtrip" png b
   | _ -> check "mv real: RPGMZ decrypted" false
 
-(* ---- XP / VX (shared Rgssad_core) ------------------------------------ *)
-let build_rgssad ver =
+(* ---- XP / VX (shared Rgssad_core, RGSSAD v1) ------------------------- *)
+(* Build a real RGSSAD v1 archive: an independent reference construction of the
+   0xDEADCAFE streaming format (rolling key advances key*7+3 after every u32 and
+   every filename byte; data XOR'd 4 bytes at a time from the key captured after
+   [size]). Serves as ground truth for the parser + payload decryptor. *)
+let u32 x = x land 0xFFFFFFFF
+let advance k = u32 ((k * 7) + 3)
+
+let build_rgssad_v1 () =
   let name = "Graphics/Hero.png" in
   let nlen = String.length name in
-  let enc =
-    Bytes.init nlen (fun i ->
-        Char.chr
-          (Char.code name.[i]
-          lxor Char.code (Bytes.get Crypto.magic_rgssad_prefix (i mod 7))))
-  in
-  let payload = Bytes.init 8 (fun i -> Char.chr i) in
+  let payload = Bytes.init 40 (fun i -> Char.chr (i land 0xFF)) in
   let psize = Bytes.length payload in
-  let pos_payload = 8 + 12 + nlen + 12 in
+  let pos_payload = 8 + 4 + nlen + 4 in
   let total = pos_payload + psize in
   let buf = Bytes.make total '\000' in
   Bytes.blit Crypto.magic_rgssad_prefix 0 buf 0 7;
-  Bytes.set buf 7 (Char.chr ver);
-  set_u32le buf 8 psize;
-  (* size *)
-  set_u32le buf 12 pos_payload;
-  (* offset *)
-  set_u32le buf 16 nlen;
-  (* name_len *)
-  Bytes.blit enc 0 buf 20 nlen;
-  (* terminator 12 zero bytes already in place *)
-  Bytes.blit payload 0 buf pos_payload psize;
+  Bytes.set buf 7 '\x01';
+  let key = ref 0xDEADCAFE in
+  (* name_len : XOR whole key, then advance *)
+  set_u32le buf 8 (nlen lxor !key);
+  key := advance !key;
+  (* name bytes : XOR low byte of key, advance per byte *)
+  for i = 0 to nlen - 1 do
+    Bytes.set buf (12 + i) (Char.chr (Char.code name.[i] lxor (!key land 0xFF)));
+    key := advance !key
+  done;
+  (* size : XOR whole key, then advance *)
+  set_u32le buf (12 + nlen) (psize lxor !key);
+  key := advance !key;
+  (* data : rolling key captured here, advancing every 4 bytes *)
+  let dk = ref !key and j = ref 0 in
+  for i = 0 to psize - 1 do
+    if !j = 4 then begin
+      dk := advance !dk;
+      j := 0
+    end;
+    Bytes.set buf (pos_payload + i)
+      (Char.chr (Char.code (Bytes.get payload i) lxor ((!dk lsr (8 * !j)) land 0xFF)));
+    incr j
+  done;
   (buf, name, payload, pos_payload)
 
 let test_xp_vx () =
-  (* XP v1 *)
-  let buf, name, payload, pos_payload = build_rgssad 0x01 in
+  let buf, name, payload, pos_payload = build_rgssad_v1 () in
+  (* XP `.rgssad` parses v1 and fully decrypts the payload *)
   (match Xp.parse buf with
   | Ok (entries, _) ->
       check "xp 1 entry" (List.length entries = 1);
@@ -147,41 +162,36 @@ let test_xp_vx () =
       check "xp name" (e.Rgssad_core.name = name);
       check "xp size" (e.Rgssad_core.size = Bytes.length payload);
       check "xp offset" (e.Rgssad_core.offset = pos_payload);
-      check_bytes "xp readEntry" payload (Xp.read_entry buf e)
+      check_bytes "xp payload roundtrip" payload
+        (Xp.decrypt_data e (Xp.read_entry buf e))
   | Error _ -> check "xp parse ok" false);
+  (* VX `.rgss2a` is the SAME v1 format — same buffer must decrypt identically *)
+  (match Vx.parse buf with
+  | Ok (entries, _) ->
+      check "vx 1 entry" (List.length entries = 1);
+      let e = List.hd entries in
+      check "vx name" (e.Rgssad_core.name = name);
+      check_bytes "vx payload roundtrip" payload
+        (Vx.decrypt_data e (Vx.read_entry buf e))
+  | Error _ -> check "vx parse ok" false);
   check "xp bad magic"
     (match Xp.parse (Bytes.of_string "\xff\xff\xff\xff\xff\xff\xff\x01") with
     | Error Rgssad_core.BadMagic -> true
     | _ -> false);
-  check "xp bad version"
-    (match Xp.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02") with
-    | Error (Rgssad_core.BadVersion 2) -> true
+  (* v1 parser rejects a v3 header with BadVersion 3 *)
+  check "rgssad bad version 3"
+    (match Xp.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x03") with
+    | Error (Rgssad_core.BadVersion 3) -> true
     | _ -> false);
-  (* VX v2 *)
-  let buf2, name2, _, _ = build_rgssad 0x02 in
-  (match Vx.parse buf2 with
-  | Ok (entries, _) ->
-      check "vx 1 entry" (List.length entries = 1);
-      check "vx name" ((List.hd entries).Rgssad_core.name = name2)
-  | Error _ -> check "vx parse ok" false);
-  check "vx bad version"
-    (match Vx.parse (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01") with
-    | Error (Rgssad_core.BadVersion 1) -> true
-    | _ -> false);
-  (* I-1 regression: high-bit name_len must yield Truncated, never crash.
-     20-byte buffer: header(8) + size(nonzero,4) + offset(4) + name_len(4). *)
-  let bad = Bytes.make 20 '\000' in
+  (* I-1 regression: a name_len that decodes huge must yield Truncated, never
+     crash. header(8) + name_len(4)=0 -> decodes to 0xDEADCAFE (>> buffer). *)
+  let bad = Bytes.make 12 '\000' in
   Bytes.blit Crypto.magic_rgssad_prefix 0 bad 0 7;
-  Bytes.set bad 7 '\x02';
-  set_u32le bad 8 0x10;
-  (* size nonzero -> not the sentinel *)
-  set_u32le bad 16 0xFFFFFFFA;
-  (* name_len high-bit *)
-  check "vx high-bit name_len -> Truncated"
-    (match Vx.parse bad with Error Rgssad_core.Truncated -> true | _ -> false);
-  (* read_u32_le must decode all four bytes; a value > 255 exercises bytes 1..3.
-     Mutation coverage: a byte1/byte2 shift mutation survives if only small
-     (< 256) values are tested. *)
+  Bytes.set bad 7 '\x01';
+  set_u32le bad 8 0;
+  check "rgssad huge name_len -> Truncated"
+    (match Xp.parse bad with Error Rgssad_core.Truncated -> true | _ -> false);
+  (* read_u32_le must decode all four bytes; a value > 255 exercises bytes 1..3. *)
   let b32 = Bytes.make 4 '\000' in
   set_u32le b32 0 0x12345678;
   check "rgssad read_u32_le 0x12345678"
@@ -398,9 +408,9 @@ let test_classify () =
   check "classify .rgssad v1 -> XP" (Dispatch.classify r1 = Some Types.XP);
   Sys.remove r1;
   let r2 =
-    write_tmp ".rgssad" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x02")
+    write_tmp ".rgss2a" (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01")
   in
-  check "classify .rgssad v2 -> VX" (Dispatch.classify r2 = Some Types.VX);
+  check "classify .rgss2a v1 -> VX" (Dispatch.classify r2 = Some Types.VX);
   Sys.remove r2;
   let r3 =
     write_tmp ".rgss3a"

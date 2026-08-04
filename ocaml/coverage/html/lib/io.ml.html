@@ -44,10 +44,10 @@
 <pre><code class="ocaml">(* Small binary file helpers: read a whole file into bytes, write bytes atomically. *)
 
 let read_file (path : string) : bytes =
-  <span data-count="8">I</span>n_channel.with_open_bin path In_channel.input_all |&gt; <span data-count="8">B</span>ytes.of_string
+  <span data-count="21">I</span>n_channel.with_open_bin path In_channel.input_all |&gt; <span data-count="21">B</span>ytes.of_string
 
 let write_file (path : string) (b : bytes) : unit =
-  <span data-count="12">O</span>ut_channel.with_open_bin path (fun oc -&gt; <span data-count="12">O</span>ut_channel.output_bytes oc b)
+  <span data-count="28">O</span>ut_channel.with_open_bin path (fun oc -&gt; <span data-count="28">O</span>ut_channel.output_bytes oc b)
 </code></pre>
       </div>
     </div>

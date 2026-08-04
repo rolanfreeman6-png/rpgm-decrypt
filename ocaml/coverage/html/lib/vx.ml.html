@@ -18,7 +18,7 @@
       <h2>33.33%</h2>
     </div>
     <div id="navbar">
-      <span class="unvisited" style="bottom:15.38%"></span>
+      <span class="unvisited" style="bottom:20.00%"></span>
     </div>
     <div id="report">
       <div id="lines-layer">
@@ -30,12 +30,14 @@
 <a id="L5"></a><span > </span>
 <a id="L6"></a><span > </span>
 <a id="L7"></a><span > </span>
-<a id="L8"></a><span class="visited"> </span>
-<a id="L9"></a><span > </span>
+<a id="L8"></a><span > </span>
+<a id="L9"></a><span class="visited"> </span>
 <a id="L10"></a><span > </span>
-<a id="L11"></a><span class="unvisited"> </span>
-<a id="L12"></a><span > </span>
+<a id="L11"></a><span > </span>
+<a id="L12"></a><span class="unvisited"> </span>
 <a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
+<a id="L15"></a><span > </span>
 </pre>
       </div>
       <div id="text-layer">
@@ -53,20 +55,24 @@
 <a href="#L11">11</a>
 <a href="#L12">12</a>
 <a href="#L13">13</a>
+<a href="#L14">14</a>
+<a href="#L15">15</a>
 </pre>
-<pre><code class="ocaml">(* Source — VX `.rgssad` v2 / `.rgss2a`, thin wrapper over
-   Rgssad_core (version 0x02, size=0 &amp;&amp; name_len=0 sentinel). *)
+<pre><code class="ocaml">(* RPG Maker VX `.rgss2a` — RGSSAD v1 (byte-identical to XP's `.rgssad`;
+   version byte is 0x01, NOT 0x02 — there is no RGSSAD v2). Thin wrapper over
+   Rgssad_core. *)
 
 type entry = Rgssad_core.entry
 type parse_error = Rgssad_core.parse_error
 
 let parse (buf : bytes) : (entry list * int, parse_error) result =
-  <span data-count="503">R</span>gssad_core.parse 0x02 Rgssad_core.SizeAndNameZero buf
+  <span data-count="501">R</span>gssad_core.parse buf
 
 let parse_file (path : string) : (entry list * int, parse_error) result =
   <span data-count="0">p</span>arse (Io.read_fil<span data-count="0">e</span> path)
 
 let read_entry = Rgssad_core.read_entry
+let decrypt_data = Rgssad_core.decrypt_data
 </code></pre>
       </div>
     </div>

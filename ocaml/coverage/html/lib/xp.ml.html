@@ -18,7 +18,7 @@
       <h2>33.33%</h2>
     </div>
     <div id="navbar">
-      <span class="unvisited" style="bottom:15.38%"></span>
+      <span class="unvisited" style="bottom:21.43%"></span>
     </div>
     <div id="report">
       <div id="lines-layer">
@@ -36,6 +36,7 @@
 <a id="L11"></a><span class="unvisited"> </span>
 <a id="L12"></a><span > </span>
 <a id="L13"></a><span > </span>
+<a id="L14"></a><span > </span>
 </pre>
       </div>
       <div id="text-layer">
@@ -53,20 +54,22 @@
 <a href="#L11">11</a>
 <a href="#L12">12</a>
 <a href="#L13">13</a>
+<a href="#L14">14</a>
 </pre>
-<pre><code class="ocaml">(* Source — XP `.rgssad` v1, thin wrapper over Rgssad_core
-   (version 0x01, name_len=0 sentinel). Entry/error types are Rgssad_core's. *)
+<pre><code class="ocaml">(* RPG Maker XP `.rgssad` — RGSSAD v1. Thin wrapper over Rgssad_core
+   (version 0x01, streaming layout). Entry/error types are Rgssad_core's. *)
 
 type entry = Rgssad_core.entry
 type parse_error = Rgssad_core.parse_error
 
 let parse (buf : bytes) : (entry list * int, parse_error) result =
-  <span data-count="503">R</span>gssad_core.parse 0x01 Rgssad_core.NameLenZero buf
+  <span data-count="504">R</span>gssad_core.parse buf
 
 let parse_file (path : string) : (entry list * int, parse_error) result =
   <span data-count="0">p</span>arse (Io.read_fil<span data-count="0">e</span> path)
 
 let read_entry = Rgssad_core.read_entry
+let decrypt_data = Rgssad_core.decrypt_data
 </code></pre>
       </div>
     </div>

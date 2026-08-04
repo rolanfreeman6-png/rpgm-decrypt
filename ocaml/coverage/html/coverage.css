@@ -1,0 +1,56 @@
+/* Coverage report stylesheet.
+   NOTE: bisect-ppx-report html crashes at its final asset/index-writing step on
+   this Windows/mingw OCaml build ("allocation failure during minor GC"), after
+   emitting the genuine per-file lib/*.ml.html pages. This stylesheet + the
+   index.html + the *.js stubs in this directory are hand-authored so the real
+   per-file pages render styled locally. The Linux CI job emits the full report.
+   The per-line visited/unvisited data in lib/*.ml.html is genuine bisect output. */
+
+body {
+  font-family: "Segoe UI", "DejaVu Sans", system-ui, sans-serif;
+  margin: 0;
+  color: #24292e;
+  background: #fff;
+}
+
+#header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e1e4e8;
+  background: #f6f8fa;
+}
+#header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+#header h1 a { text-decoration: none; color: #0366d6; }
+#header h2 { margin: 4px 0 0; font-size: 15px; font-weight: 600; color: #444; }
+.dirname { color: #6a737d; }
+
+#navbar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 12px;
+  height: 100%;
+  background: #eee;
+  z-index: 10;
+}
+#navbar span {
+  position: absolute;
+  right: 0;
+  width: 12px;
+  height: 2px;
+}
+.some-visited { background: #f0ad4e; }
+
+#report { position: relative; }
+#lines-layer pre,
+#text-layer pre {
+  margin: 0;
+  font-family: "Cascadia Code", "DejaVu Sans Mono", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Genuine bisect per-line classes */
+span.visited   { background: #d6f5d6; }  /* executed at least once */
+span.unvisited { background: #fdd; }      /* never executed */
+
+pre a { color: inherit; text-decoration: none; }

@@ -196,51 +196,51 @@ let candidate_extensions =
   ]
 
 let has_interesting_extension (path : string) : bool =
-  <span data-count="3">L</span>ist.mem
-    (String.lowercase_asci<span data-count="3">i</span> (Filename.extensio<span data-count="3">n</span> path))
+  <span data-count="11">L</span>ist.mem
+    (String.lowercase_asci<span data-count="11">i</span> (Filename.extensio<span data-count="11">n</span> path))
     candidate_extensions
 
 let file_size (path : string) : int64 =
-  <span data-count="2">I</span>n_channel.with_open_bin path In_channel.length
+  <span data-count="6">I</span>n_channel.with_open_bin path In_channel.length
 
 (* Make [path] relative to [root] (root assumed a prefix). *)
 let relative_to (root : string) (path : string) : string =
-  <span data-count="2">l</span>et root =
+  <span data-count="6">l</span>et root =
     if Filename.check_suffix root Filename.dir_sep then <span data-count="0">r</span>oot
-    else <span data-count="2">r</span>oot ^ Filename.dir_sep
+    else <span data-count="6">r</span>oot ^ Filename.dir_sep
   in
   let rl = String.length root in
-  <span data-count="2">i</span>f String.lengt<span data-count="2">h</span> path &gt;= rl &amp;&amp; <span data-count="2">S</span>tring.su<span data-count="2">b</span> path 0 rl = root then
-    <span data-count="2">S</span>tring.sub path rl (String.lengt<span data-count="2">h</span> path - rl)
+  <span data-count="6">i</span>f String.lengt<span data-count="6">h</span> path &gt;= rl &amp;&amp; <span data-count="6">S</span>tring.su<span data-count="6">b</span> path 0 rl = root then
+    <span data-count="6">S</span>tring.sub path rl (String.lengt<span data-count="6">h</span> path - rl)
   else <span data-count="0">p</span>ath
 
 let rec all_files (dir : string) : string list =
-  <span data-count="5">m</span>atch Sys.readdir dir with
+  <span data-count="15">m</span>atch Sys.readdir dir with
   | <span data-count="0">e</span>xception _ -&gt; []
-  | <span data-count="5">n</span>ames -&gt;
+  | <span data-count="15">n</span>ames -&gt;
       Array.to_list names
-      |&gt; <span data-count="5">L</span>ist.concat_map (fun name -&gt;
-          <span data-count="6">l</span>et p = Filename.concat dir name in
-          <span data-count="6">m</span>atch Sys.is_directory p with
-          | <span data-count="3">t</span>rue -&gt; all_files p
-          | <span data-count="3">f</span>alse -&gt; [ p ]
+      |&gt; <span data-count="15">L</span>ist.concat_map (fun name -&gt;
+          <span data-count="22">l</span>et p = Filename.concat dir name in
+          <span data-count="22">m</span>atch Sys.is_directory p with
+          | <span data-count="11">t</span>rue -&gt; all_files p
+          | <span data-count="11">f</span>alse -&gt; [ p ]
           | <span data-count="0">e</span>xception _ -&gt; [])
 
 let walk (root_dir : string) : Types.detected_file list =
-  <span data-count="2">i</span>f not (Sys.file_exist<span data-count="2">s</span> root_dir) then <span data-count="0">[</span>]
-  else <span data-count="2">i</span>f not (Sys.is_director<span data-count="2">y</span> root_dir) then <span data-count="0">[</span>]
+  <span data-count="4">i</span>f not (Sys.file_exist<span data-count="4">s</span> root_dir) then <span data-count="0">[</span>]
+  else <span data-count="4">i</span>f not (Sys.is_director<span data-count="4">y</span> root_dir) then <span data-count="0">[</span>]
   else
-    <span data-count="2">a</span>ll_files root_dir
-    |&gt; <span data-count="2">L</span>ist.filter has_interesting_extension
-    |&gt; <span data-count="2">L</span>ist.filter_map (fun path -&gt;
-        <span data-count="2">m</span>atch Dispatch.classify path with
-        | <span data-count="2">S</span>ome fmt -&gt;
+    <span data-count="4">a</span>ll_files root_dir
+    |&gt; <span data-count="4">L</span>ist.filter has_interesting_extension
+    |&gt; <span data-count="4">L</span>ist.filter_map (fun path -&gt;
+        <span data-count="6">m</span>atch Dispatch.classify path with
+        | <span data-count="6">S</span>ome fmt -&gt;
             Some
               Types.
                 {
                   abs_path = path;
-                  rel_path = relative_t<span data-count="2">o</span> root_dir path;
-                  size_bytes = file_siz<span data-count="2">e</span> path;
+                  rel_path = relative_t<span data-count="6">o</span> root_dir path;
+                  size_bytes = file_siz<span data-count="6">e</span> path;
                   format = fmt;
                 }
         | <span data-count="0">N</span>one -&gt; None)

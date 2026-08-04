@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<!--
+  Hand-authored coverage index.
+
+  bisect-ppx-report html renders the per-file lib/*.ml.html pages (genuine
+  bisect output: the per-line visited/unvisited colouring is real coverage
+  data), then crashes at its final index/asset-writing step on this
+  Windows/mingw OCaml 5.3 build with "Fatal error: allocation failure during
+  minor GC" (exit 3), so it never emits index.html / coverage.css / *.js.
+
+  This index and the sibling coverage.css / coverage.js / highlight.pack.js are
+  therefore hand-authored so the genuine per-file pages are browsable locally.
+  The numbers below are copied verbatim from bisect-ppx-report summary
+  (coverage/summary.txt) over the 92 behavioural checks + 12 QCheck properties.
+  The Linux CI job (ocaml-coverage) emits the full bisect-generated report.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>Coverage report &mdash; rpgm-decrypt (OCaml)</title>
+    <link rel="stylesheet" href="coverage.css"/>
+    <style>
+      #index { padding: 20px; max-width: 720px; }
+      table { border-collapse: collapse; width: 100%; font-size: 14px; }
+      th, td { padding: 6px 12px; border-bottom: 1px solid #e1e4e8; text-align: left; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      tr.total td { font-weight: 700; border-top: 2px solid #d1d5da; background: #f6f8fa; }
+      .bar { display: inline-block; height: 10px; border-radius: 2px; background: #2ea44f; vertical-align: middle; }
+      .bar-bg { display: inline-block; width: 120px; height: 10px; border-radius: 2px; background: #eee; vertical-align: middle; margin-right: 8px; }
+      a { color: #0366d6; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .note { color: #6a737d; font-size: 12px; margin-top: 16px; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <div id="header">
+      <h1>rpgm-decrypt &mdash; OCaml coverage</h1>
+      <h2>63.83% &nbsp;&mdash;&nbsp; 706 / 1106 points</h2>
+    </div>
+    <div id="index">
+      <table>
+        <thead>
+          <tr><th>File</th><th class="num">Coverage</th><th class="num">Covered / Total</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><a href="lib/vxace_key.ml.html">lib/vxace_key.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:120px"></span></span>100.00%</td><td class="num">35 / 35</td></tr>
+          <tr><td><a href="lib/io.ml.html">lib/io.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:120px"></span></span>100.00%</td><td class="num">4 / 4</td></tr>
+          <tr><td><a href="lib/crypto.ml.html">lib/crypto.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:114px"></span></span>95.41%</td><td class="num">104 / 109</td></tr>
+          <tr><td><a href="lib/rgssad_core.ml.html">lib/rgssad_core.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:104px"></span></span>87.01%</td><td class="num">67 / 77</td></tr>
+          <tr><td><a href="lib/walk.ml.html">lib/walk.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:97px"></span></span>81.08%</td><td class="num">30 / 37</td></tr>
+          <tr><td><a href="lib/vxace.ml.html">lib/vxace.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:97px"></span></span>80.43%</td><td class="num">37 / 46</td></tr>
+          <tr><td><a href="lib/mv.ml.html">lib/mv.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:91px"></span></span>75.68%</td><td class="num">56 / 74</td></tr>
+          <tr><td><a href="lib/dispatch.ml.html">lib/dispatch.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:76px"></span></span>63.22%</td><td class="num">55 / 87</td></tr>
+          <tr><td><a href="lib/mz.ml.html">lib/mz.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:76px"></span></span>62.96%</td><td class="num">17 / 27</td></tr>
+          <tr><td><a href="lib/report.ml.html">lib/report.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:62px"></span></span>51.83%</td><td class="num">184 / 355</td></tr>
+          <tr><td><a href="lib/key_discovery.ml.html">lib/key_discovery.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:60px"></span></span>50.31%</td><td class="num">80 / 159</td></tr>
+          <tr><td><a href="lib/types.ml.html">lib/types.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:55px"></span></span>45.83%</td><td class="num">11 / 24</td></tr>
+          <tr><td><a href="lib/log.ml.html">lib/log.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:44px"></span></span>36.36%</td><td class="num">24 / 66</td></tr>
+          <tr><td><a href="lib/xp.ml.html">lib/xp.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:40px"></span></span>33.33%</td><td class="num">1 / 3</td></tr>
+          <tr><td><a href="lib/vx.ml.html">lib/vx.ml</a></td><td class="num"><span class="bar-bg"><span class="bar" style="width:40px"></span></span>33.33%</td><td class="num">1 / 3</td></tr>
+          <tr class="total"><td>Project</td><td class="num">63.83%</td><td class="num">706 / 1106</td></tr>
+        </tbody>
+      </table>
+      <p class="note">
+        Generated by bisect_ppx over the 92 behavioural checks + 12 QCheck
+        properties. This index was hand-authored because
+        <code>bisect-ppx-report html</code> crashes at its final index-writing
+        step on this Windows/mingw build (see the HTML comment at the top of
+        this file and <code>coverage.css</code>); the linked per-file pages are
+        genuine bisect output. Machine-readable:
+        <a href="../coverage.cobertura.xml">coverage.cobertura.xml</a> &middot;
+        raw summary: <a href="../summary.txt">summary.txt</a>.
+      </p>
+    </div>
+  </body>
+</html>

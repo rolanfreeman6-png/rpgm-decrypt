@@ -65,12 +65,34 @@ let path_combine (a : string) (b : string) : string =
   else if a.[String.length a - 1] = '/' then a ^ b
   else a ^ "/" ^ b
 
+(* Windows drive-letter prefix, e.g. "C:". *)
+let is_drive_abs (p : string) : bool =
+  String.length p >= 2
+  && (let c = Char.lowercase_ascii p.[0] in
+      c >= 'a' && c <= 'z')
+  && p.[1] = ':'
+
+(* Canonicalise to an absolute, slash-separated path with "."/".." collapsed.
+   Separator-agnostic (accepts both '/' and '\\') and Windows-aware: a
+   drive-letter prefix ("C:") is preserved as the root instead of being pushed
+   below a bogus leading "/". On POSIX (no drive, leading '/') the behaviour is
+   unchanged. *)
 let normalize (path : string) : string =
+  let path = String.map (fun c -> if c = '\\' then '/' else c) path in
   let path =
-    if Filename.is_relative path then Filename.concat (Sys.getcwd ()) path
-    else path
+    if is_drive_abs path || (String.length path > 0 && path.[0] = '/') then path
+    else
+      let cwd =
+        String.map (fun c -> if c = '\\' then '/' else c) (Sys.getcwd ())
+      in
+      if cwd = "" then path else cwd ^ "/" ^ path
   in
-  let parts = String.split_on_char '/' path in
+  let drive, rest =
+    if is_drive_abs path then
+      (String.sub path 0 2, String.sub path 2 (String.length path - 2))
+    else ("", path)
+  in
+  let parts = String.split_on_char '/' rest in
   let rec go acc = function
     | [] -> List.rev acc
     | "" :: rest | "." :: rest -> go acc rest
@@ -78,7 +100,8 @@ let normalize (path : string) : string =
         match acc with _ :: tl -> go tl rest | [] -> go acc rest)
     | seg :: rest -> go (seg :: acc) rest
   in
-  "/" ^ String.concat "/" (go [] parts)
+  let body = String.concat "/" (go [] parts) in
+  if drive <> "" then drive ^ "/" ^ body else "/" ^ body
 
 (** Resolve [rel] under [out_dir]; None if it escapes (absolute / traversal). *)
 let safe_join (out_dir : string) (rel : string) : string option =
@@ -194,7 +217,6 @@ let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
       summary := Types.tally (Types.Failed (d_rel, msg)) !summary;
       cfg.on_event (Log.Failed (d_abs, msg))
   | Ok entries ->
-      let failed_here = ref false in
       List.iter
         (fun (e : Vxace.entry) ->
           try
@@ -203,7 +225,6 @@ let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
             let output_rel = to_local e.Vxace.name in
             match safe_join cfg.out_dir output_rel with
             | None ->
-                failed_here := true;
                 let why =
                   Printf.sprintf "unsafe entry path blocked (traversal): %s"
                     e.Vxace.name
@@ -226,7 +247,6 @@ let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
                     !summary;
                 cfg.on_event (Log.Decrypt (d_abs, output_path, "VXAce"))
           with ex ->
-            failed_here := true;
             summary :=
               Types.tally
                 (Types.Failed
@@ -237,46 +257,61 @@ let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
             cfg.on_event
               (Log.Failed
                  (d_abs, Printf.sprintf "decode error on %s" e.Vxace.name)))
-        entries;
-      if not !failed_here then begin
-        let manifest_path =
-          Filename.concat cfg.out_dir (d_rel ^ ".entries.txt")
-        in
-        (if not cfg.dry_run then
-           let txt =
-             entries
-             |> List.map (fun (e : Vxace.entry) ->
-                 Printf.sprintf "%d\t%s\toffset=%d\tsize=%d" e.Vxace.index
-                   e.Vxace.name e.Vxace.offset e.Vxace.size)
-             |> String.concat "\n"
-           in
-           write_all_bytes manifest_path (Bytes.of_string txt));
-        summary :=
-          Types.tally
-            (Types.PassedThrough (manifest_path, Types.VXAce))
-            !summary;
-        cfg.on_event (Log.Decrypt (d_abs, manifest_path, "VXAce"))
-      end
+        entries
 
-(* write a TOC manifest for an XP/VX archive (entries are Rgssad_core.entry) *)
-let write_rgssad_manifest (cfg : config) (d : Types.detected_file)
-    (entries : Rgssad_core.entry list) (fmt : Types.format)
+(* ---- XP/VX (RGSSAD v1) real extraction -------------------------------- *)
+(* Parse the RGSSAD v1 archive and write every decrypted entry into out_dir,
+   mirroring the archive's internal directory tree. Entry paths are contained
+   by safe_join (Zip-Slip defence). *)
+let extract_rgssad_archive (archive_bytes : bytes) (d_rel : string)
+    (d_abs : string) (fmt : Types.format) (cfg : config)
     (summary : Types.run_summary ref) : unit =
-  let manifest_path =
-    Filename.concat cfg.out_dir (d.Types.rel_path ^ ".entries.txt")
-  in
-  (if not cfg.dry_run then
-     let txt =
-       entries
-       |> List.map (fun (e : Rgssad_core.entry) ->
-           Printf.sprintf "%d\t%s\toffset=%d\tsize=%d" e.Rgssad_core.index
-             e.Rgssad_core.name e.Rgssad_core.offset e.Rgssad_core.size)
-       |> String.concat "\n"
-     in
-     write_all_bytes manifest_path (Bytes.of_string txt));
-  summary := Types.tally (Types.PassedThrough (manifest_path, fmt)) !summary;
-  cfg.on_event
-    (Log.Decrypt (d.Types.abs_path, manifest_path, Types.format_to_string fmt))
+  match Rgssad_core.parse archive_bytes with
+  | Error e ->
+      let msg = rgssad_err_str e in
+      summary := Types.tally (Types.Failed (d_rel, msg)) !summary;
+      cfg.on_event (Log.Failed (d_abs, msg))
+  | Ok (entries, _) ->
+      List.iter
+        (fun (e : Rgssad_core.entry) ->
+          try
+            let cipher = Rgssad_core.read_entry archive_bytes e in
+            let plain = Rgssad_core.decrypt_data e cipher in
+            let output_rel = to_local e.Rgssad_core.name in
+            match safe_join cfg.out_dir output_rel with
+            | None ->
+                let why =
+                  Printf.sprintf "unsafe entry path blocked (traversal): %s"
+                    e.Rgssad_core.name
+                in
+                summary :=
+                  Types.tally (Types.Failed (e.Rgssad_core.name, why)) !summary;
+                cfg.on_event (Log.Failed (d_abs, why))
+            | Some output_path ->
+                if not cfg.dry_run then begin
+                  let dir = Filename.dirname output_path in
+                  if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
+                  Io.write_file output_path plain
+                end;
+                summary :=
+                  Types.tally
+                    (Types.Decrypted
+                       (output_rel, Int64.of_int (Bytes.length plain), fmt))
+                    !summary;
+                cfg.on_event
+                  (Log.Decrypt (d_abs, output_path, Types.format_to_string fmt))
+          with ex ->
+            summary :=
+              Types.tally
+                (Types.Failed
+                   ( e.Rgssad_core.name,
+                     Printf.sprintf "decode error: %s" (Printexc.to_string ex)
+                   ))
+                !summary;
+            cfg.on_event
+              (Log.Failed
+                 (d_abs, Printf.sprintf "decode error on %s" e.Rgssad_core.name)))
+        entries
 
 let run (cfg : config) : Types.run_summary =
   let summary = ref (Types.run_summary_empty (Unix.gettimeofday ())) in
@@ -395,24 +430,18 @@ let run (cfg : config) : Types.run_summary =
               summary :=
                 Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
               cfg.on_event (Log.Failed (d.Types.abs_path, msg)))
-      | Types.XP -> (
-          match Xp.parse_file d.Types.abs_path with
-          | Ok (entries, _) ->
-              write_rgssad_manifest cfg d entries Types.XP summary
-          | Error e ->
-              let msg = rgssad_err_str e in
+      | (Types.XP | Types.VX) as fmt -> (
+          match Io.read_file d.Types.abs_path with
+          | exception e ->
+              let msg =
+                Printf.sprintf "I/O during open: %s" (Printexc.to_string e)
+              in
               summary :=
                 Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
-              cfg.on_event (Log.Failed (d.Types.abs_path, msg)))
-      | Types.VX -> (
-          match Vx.parse_file d.Types.abs_path with
-          | Ok (entries, _) ->
-              write_rgssad_manifest cfg d entries Types.VX summary
-          | Error e ->
-              let msg = rgssad_err_str e in
-              summary :=
-                Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
-              cfg.on_event (Log.Failed (d.Types.abs_path, msg)))
+              cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+          | archive_bytes ->
+              extract_rgssad_archive archive_bytes d.Types.rel_path
+                d.Types.abs_path fmt cfg summary)
       | Types.VXAce ->
           let archive_bytes = ref (Bytes.create 0) in
           let io_failed = ref false in

@@ -18,8 +18,7 @@ let run_targets (data : bytes) (path : string) : unit =
   ignore (Xp.parse data);
   ignore (Vx.parse data);
   ignore (Vxace.parse data);
-  ignore (Rgssad_core.parse 0x01 Rgssad_core.NameLenZero data);
-  ignore (Rgssad_core.parse 0x02 Rgssad_core.SizeAndNameZero data);
+  ignore (Rgssad_core.parse data);
   ignore (Mv.decrypt key16 data);
   ignore (Vxace_key.decode_payload data 0x12345);
   ignore (Vxace_key.decode_filename data 0x12345);
@@ -37,23 +36,26 @@ let u32le b pos v =
   Bytes.set b (pos + 2) (Char.chr ((v lsr 16) land 0xFF));
   Bytes.set b (pos + 3) (Char.chr ((v lsr 24) land 0xFF))
 
+(* A well-formed RGSSAD v1 seed (0xDEADCAFE streaming format). [ver] is written
+   as the version byte so 0x02 seeds the version-rejection path. *)
 let build_rgssad ver =
+  let u32 x = x land 0xFFFFFFFF in
+  let advance k = u32 ((k * 7) + 3) in
   let name = "Graphics/Hero.png" in
   let nlen = String.length name in
-  let enc =
-    Bytes.init nlen (fun i ->
-        Char.chr
-          (Char.code name.[i]
-          lxor Char.code (Bytes.get Crypto.magic_rgssad_prefix (i mod 7))))
-  in
-  let pos_payload = 8 + 12 + nlen + 12 in
-  let buf = Bytes.make (pos_payload + 16) '\000' in
+  let psize = 16 in
+  let pos_payload = 8 + 4 + nlen + 4 in
+  let buf = Bytes.make (pos_payload + psize) '\000' in
   Bytes.blit Crypto.magic_rgssad_prefix 0 buf 0 7;
   Bytes.set buf 7 (Char.chr ver);
-  u32le buf 8 16;
-  u32le buf 12 pos_payload;
-  u32le buf 16 nlen;
-  Bytes.blit enc 0 buf 20 nlen;
+  let key = ref 0xDEADCAFE in
+  u32le buf 8 (nlen lxor !key);
+  key := advance !key;
+  for i = 0 to nlen - 1 do
+    Bytes.set buf (12 + i) (Char.chr (Char.code name.[i] lxor (!key land 0xFF)));
+    key := advance !key
+  done;
+  u32le buf (12 + nlen) (psize lxor !key);
   buf
 
 let mv_seed =

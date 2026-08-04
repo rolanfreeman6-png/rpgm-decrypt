@@ -12,9 +12,19 @@ why3 prove -P z3 -a split_goal_full -t 30 ocaml/proofs/rpgm_proof.mlw
 ```
 
 **Result: all goals discharge (23/23 `Valid`).** The captured prover output is
-`proof_output.txt`. The `-a split_goal_full` transformation is required: it
-breaks the recursive program-proof VCs into Z3-handleable pieces (without it
-Z3 E-matches the `mem` predicate over unbounded lists and OOMs).
+`proof_output.txt`. Re-verified locally with **Why3 1.8.2 + Z3 4.13.4**
+(`why3 prove -P Z3,4.13.4 -a split_goal_full -t 30 proofs/rpgm_proof.mlw` →
+`grep -c "Prover result is: Valid"` = 23, exit 0, no non-`Valid`). The
+`-a split_goal_full` transformation is required: it breaks the recursive
+program-proof VCs into Z3-handleable pieces (without it Z3 E-matches the `mem`
+predicate over unbounded lists and OOMs).
+
+> **Windows note.** Why3 1.8.2 recognises Z3 up to the 4.13.x line (not 5.x),
+> so use a 4.13.x build. The `z3.exe` path stored in `.why3.conf` must use
+> **forward slashes** (`C:/…/z3.exe`); with backslashes Why3's own config
+> reader aborts with `bad escape sequence '\U'` when it expands the prover
+> command. `why3 config detect` rewrites the path with backslashes, so set the
+> forward-slash path *after* the last `detect`.
 
 ## Why hand-written WhyML, not Cameleer?
 
@@ -50,11 +60,18 @@ analysis on `seg`/`acc` + the recursive call's ensures as the IH), and
 |---|---|---|
 | `RgssadU32.derive_master_key_spec` | `derive_master_key buf off = u32 ((read_u32_le buf off)*9 + 3)` | Valid |
 | `RgssadU32.read_u32_le_formula` | little-endian byte expansion | Valid |
-| `PathContainment.normalize_acc_proc'vc` | normalize onto a `..`-free accumulator ⇒ `..`-free result (Zip-Slip) — 18 sub-goals (variant, precondition, postcondition) | all Valid |
-| `PathContainment.normalize_proc'vc` | `normalize p` has no `..` component | Valid |
+| `PathContainment.normalize_acc_proc'vc` | normalize onto a `..`-free accumulator ⇒ `..`-free result (Zip-Slip) — 16 sub-goals (5 variant-decrease + 5 precondition + 5+1 postcondition) | all Valid |
+| `PathContainment.normalize_proc'vc` | `normalize p` has no `..` component — 2 sub-goals (precondition, postcondition) | all Valid |
 | `RgssadBounds.read_entry_size_nonneg` | clamped slice size ≥ 0 (requires `esize ≥ 0`) | Valid |
 | `RgssadBounds.read_entry_size_bounded` | clamped slice size ≤ `len` | Valid |
 | `RgssadBounds.advance_in_bounds` | parser `pos` stays in `[0,len]` (requires `delta ≥ 0`) | Valid |
+
+**Count:** the five one-line `goal`s (`derive_master_key_spec`,
+`read_u32_le_formula`, `read_entry_size_nonneg`, `read_entry_size_bounded`,
+`advance_in_bounds`) + the two program-proof VCs after `split_goal_full`
+(`normalize_acc_proc'vc` = 16 sub-goals, `normalize_proc'vc` = 2 sub-goals)
+= **5 + 16 + 2 = 23 goals, all `Valid`** (verify against `proof_output.txt`:
+`grep -c "Prover result is: Valid"` = 23, no non-`Valid` results).
 
 The two `requires` clauses added (`esize ≥ 0`, `delta ≥ 0`) are real OCaml
 invariants: entry sizes come from `read_u32_le` (≥ 0) and the parser only
@@ -64,7 +81,7 @@ the under-specified versions — a genuine proof finding, not a workaround.
 ## What is NOT proved here
 
 The I/O modules (`io`, `walk`, `mz`, `report.run`, `log`, `key_discovery`) are
-not given deductive specs — they are covered by the 72 parity tests + 12 QCheck
+not given deductive specs — they are covered by the 92 parity tests + 12 QCheck
 properties (see `ocaml/README.md` "Formal verification & guarantees"). The
 WhyML model proves the *contracts* on the pure core; it is not a full
 source-faithful translation of the OCaml source (cameleer would provide that,
