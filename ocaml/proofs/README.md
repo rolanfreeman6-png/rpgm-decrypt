@@ -11,10 +11,10 @@ why3 config detect         # registers the z3 binary
 why3 prove -P z3 -a split_goal_full -t 30 ocaml/proofs/rpgm_proof.mlw
 ```
 
-**Result: all goals discharge (23/23 `Valid`).** The captured prover output is
+**Result: all goals discharge (103/103 `Valid`).** The captured prover output is
 `proof_output.txt`. Re-verified locally with **Why3 1.8.2 + Z3 4.13.4**
 (`why3 prove -P Z3,4.13.4 -a split_goal_full -t 30 proofs/rpgm_proof.mlw` →
-`grep -c "Prover result is: Valid"` = 23, exit 0, no non-`Valid`). The
+`grep -c "Prover result is: Valid"` = 103, exit 0, no non-`Valid`). The
 `-a split_goal_full` transformation is required: it breaks the recursive
 program-proof VCs into Z3-handleable pieces (without it Z3 E-matches the `mem`
 predicate over unbounded lists and OOMs).
@@ -65,30 +65,42 @@ analysis on `seg`/`acc` + the recursive call's ensures as the IH), and
 | `RgssadBounds.read_entry_size_nonneg` | clamped slice size ≥ 0 (requires `esize ≥ 0`) | Valid |
 | `RgssadBounds.read_entry_size_bounded` | clamped slice size ≤ `len` | Valid |
 | `RgssadBounds.advance_in_bounds` | parser `pos` stays in `[0,len]` (requires `delta ≥ 0`) | Valid |
+| `CryptoInvolution.xor8_self_inverse` | `(b ⊕ k) ⊕ k = b` on `BV8` | Valid |
+| `CryptoInvolution.stream_involution` / `stream_length` | a position-only keystream XOR is self-inverse and length-preserving | all Valid |
+| `CryptoInvolution.payload_involution` | the concrete VX Ace payload decryptor is an involution for every entry key | Valid |
+| `U32Lemmas.u32_range` / `u32_idem` | `0 ≤ u32 x < 2³²`; `u32` idempotent | all Valid |
+| `U32Lemmas.read_u32_le_range` | byte-valued buffer ⇒ `0 ≤ read_u32_le ≤ 2³²−1` (a corrupt high-bit length stays positive) | Valid |
+| `RgssadParseLoop.read_u32'vc` / `parse_loop'vc` | source-faithful `Rgssad_core.parse` loop: every `buf[..]` access in bounds (no OOB), `while` terminates (lexicographic variant), `0 ≤ end_pos ≤ len` | all Valid |
+| `VxaceParseLoop.read_u32'vc` / `parse_loop'vc` | same for `Vxace.parse` (16-byte stride, `offset=0` terminator) | all Valid |
 
-**Count:** the five one-line `goal`s (`derive_master_key_spec`,
-`read_u32_le_formula`, `read_entry_size_nonneg`, `read_entry_size_bounded`,
-`advance_in_bounds`) + the two program-proof VCs after `split_goal_full`
-(`normalize_acc_proc'vc` = 16 sub-goals, `normalize_proc'vc` = 2 sub-goals)
-= **5 + 16 + 2 = 23 goals, all `Valid`** (verify against `proof_output.txt`:
-`grep -c "Prover result is: Valid"` = 23, no non-`Valid` results).
+**Count:** `grep -c "Prover result is: Valid" proof_output.txt` = **103, all
+`Valid`, no non-`Valid` results**. The total is the count of leaf sub-goals
+after `-a split_goal_full` (the recursive program-proof VCs — the two parse
+loops and `normalize_acc_proc` — split into many bounds/variant/invariant/
+postcondition pieces, which is where the bulk of the goals come from).
 
-The two `requires` clauses added (`esize ≥ 0`, `delta ≥ 0`) are real OCaml
-invariants: entry sizes come from `read_u32_le` (≥ 0) and the parser only
+The `requires` clauses on the bounds goals (`esize ≥ 0`, `delta ≥ 0`) are real
+OCaml invariants: entry sizes come from `read_u32_le` (≥ 0) and the parser only
 advances `pos` forward. They were surfaced by Z3 returning `Unknown (sat)` on
 the under-specified versions — a genuine proof finding, not a workaround.
 
 ## What is NOT proved here
 
 The I/O modules (`io`, `walk`, `mz`, `report.run`, `log`, `key_discovery`) are
-not given deductive specs — they are covered by the 92 parity tests + 12 QCheck
+not given deductive specs — they are covered by the parity tests + 12 QCheck
 properties (see `ocaml/README.md` "Formal verification & guarantees"). The
-WhyML model proves the *contracts* on the pure core; it is not a full
-source-faithful translation of the OCaml source (cameleer would provide that,
-when it becomes installable). The `path_combine` helper is not modelled
-separately: the Zip-Slip invariant is a property of `normalize` alone (the
-containment check in `safe_join` is then `full = root || full` starts with
-`root+"/"`, guarded by the no-`..` result proven here).
+`RgssadParseLoop` / `VxaceParseLoop` models are source-faithful transcriptions
+of the OCaml `parse` loops (byte buffer = `array int` with values 0..255), so
+the no-OOB and termination proofs bind to the shipped control flow; they are
+still hand-written WhyML, not a mechanical translation (cameleer would provide
+that, when it becomes installable). **Format correctness** — that the descriptor
+decodes a *real* XP/VX/VX Ace archive to the right bytes — is not a deductive
+property; it is validated empirically by the Track-0 golden tests in
+`test/test.ml` against real reference archives (see `RPGM_FIXTURES_DIR`). The
+`path_combine` helper is not modelled separately: the Zip-Slip invariant is a
+property of `normalize` alone (the containment check in `safe_join` is then
+`full = root || full` starts with `root+"/"`, guarded by the no-`..` result
+proven here).
 
 ## Gospel upgrade tracking
 

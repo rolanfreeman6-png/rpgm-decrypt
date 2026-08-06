@@ -11,7 +11,7 @@
    (Z3 must be registered via `why3 config detect`; split_goal_full is required
    to break the recursive program-proof VCs into Z3-handleable subgoals).
 
-   All 23 goals discharge Valid — see proof_output.txt. *)
+   All goals discharge Valid — see proof_output.txt. *)
 
 module RgssadU32
   (* Models Vxace_key.u32 / derive_master_key / Rgssad_core.read_u32_le. *)
@@ -147,4 +147,218 @@ module RgssadBounds
     forall pos len delta : int.
       len >= 0 -> delta >= 0 -> in_bounds pos len ->
       in_bounds (advance pos len delta) len
+end
+
+module CryptoInvolution
+  (* The stream-cipher involution proved deductively (was QCheck-only). Bytes are
+     BV8, keys BV32, so the XOR wrap is bit-exact by construction. The keystream
+     is a PURE function of (entry_key, position) — this is the crux: both the
+     encrypt and decrypt pass XOR against the identical stream, so the transform
+     is its own inverse for any data. *)
+  use int.Int
+  use int.ComputerDivision
+  use bv.BV8
+  use bv.BV32
+  use seq.Seq
+
+  goal xor8_self_inverse :
+    forall b k : BV8.t. BV8.bw_xor (BV8.bw_xor b k) k = b
+
+  function key_byte (key : BV32.t) (j : int) : BV8.t =
+    BV8.of_int (BV32.t'int (BV32.lsr_bv key (BV32.of_int (8 * j))))
+
+  (* tempKey after n block-mutations, DEFINED (not axiomatised) by the OCaml
+     recurrence tempKey_{n+1} = u32 (tempKey_n * 7 + 3); BV32 arithmetic is
+     mod-2^32 by construction, so the wrap is exact. *)
+  let rec function tempkey (ek : BV32.t) (n : int) : BV32.t
+    requires { n >= 0 }
+    variant  { n }
+  = if n = 0 then ek
+    else BV32.add (BV32.mul (tempkey ek (n - 1)) (BV32.of_int 7)) (BV32.of_int 3)
+
+  (* keystream ek i: PURE function of (ek, i) only — no dependence on data. *)
+  function keystream (ek : BV32.t) (i : int) : BV8.t =
+    key_byte (tempkey ek (div i 4)) (mod i 4)
+
+  (* The stream transform DEFINED via Seq.create — exactly what decode_payload /
+     decode_filename / xor_transform compute (they differ only in [ks]). *)
+  function xor_stream (ks : int -> BV8.t) (c : seq BV8.t) : seq BV8.t =
+    Seq.create (Seq.length c) (fun i -> BV8.bw_xor (Seq.get c i) (ks i))
+
+  (* THE THEOREM: any keystream-XOR transform is an involution — applying it
+     twice with the same (pure) keystream restores the original sequence. Because
+     [keystream ek] depends only on position, both passes XOR against the
+     identical stream, so decode (decode c k) k = c. *)
+  goal stream_involution :
+    forall ks : int -> BV8.t, c : seq BV8.t.
+      xor_stream ks (xor_stream ks c) == c
+
+  goal stream_length :
+    forall ks : int -> BV8.t, c : seq BV8.t.
+      Seq.length (xor_stream ks c) = Seq.length c
+
+  (* Instantiated at the real VX Ace keystream: the concrete payload decryptor
+     is an involution for every entry key. *)
+  goal payload_involution :
+    forall ek : BV32.t, c : seq BV8.t.
+      xor_stream (keystream ek) (xor_stream (keystream ek) c) == c
+end
+
+module U32Lemmas
+  (* Facts the parser/crypto rely on, proved (not asserted). The int model uses
+     [mod _ 2^32] for u32; these ground the range reasoning that makes the
+     bounds checks sound. The land<->mod bridge stays the documented modeling
+     assumption (BV32 makes it exact in CryptoInvolution). *)
+  use int.Int
+  use int.ComputerDivision
+  use array.Array
+
+  function u32 (x : int) : int = mod x 4294967296
+
+  goal u32_range : forall x. 0 <= x -> 0 <= u32 x < 4294967296
+  goal u32_idem  : forall x. 0 <= x -> u32 (u32 x) = u32 x
+
+  function read_u32_le (buf : array int) (pos : int) : int =
+    buf[pos] + 256 * buf[pos + 1] + 65536 * buf[pos + 2]
+    + 16777216 * buf[pos + 3]
+
+  (* Byte-valued buffer ⇒ every little-endian word is a non-negative 32-bit int.
+     This is the formal core of the OCaml header comment: a corrupt high-bit
+     length stays POSITIVE, so the [pos + name_len > len] check catches it and
+     no negative index is ever formed. *)
+  goal read_u32_le_range :
+    forall buf : array int, pos : int.
+      0 <= pos -> pos + 4 <= Array.length buf ->
+      (forall k. 0 <= k < Array.length buf -> 0 <= buf[k] <= 255) ->
+      0 <= read_u32_le buf pos <= 4294967295
+end
+
+module RgssadParseLoop
+  (* Source-faithful transcription of Rgssad_core.parse's entry loop (the
+     rewritten, real-fixture-validated v1 algorithm). Field order per entry is
+     name_len -> name -> size (NOT the old size|offset|name_len layout); there is
+     NO end-of-table sentinel and NO stream `offset` field (offset is derived
+     from the stream position). XP (.rgssad) and VX (.rgss2a) share this exact
+     loop — both carry header 0x01; there is no version 0x02, so there is no [vx]
+     branch. Reads are PROGRAM array accesses (so Why3 emits bounds-check VCs —
+     discharging them IS the no-OOB proof), and the [while] carries a
+     lexicographic [variant] proving termination on ANY input. *)
+  use int.Int
+  use ref.Ref
+  use array.Array
+
+  predicate is_byte_array (buf : array int) =
+    forall k. 0 <= k < length buf -> 0 <= buf[k] <= 255
+
+  (* One little-endian u32 read as a *program* op: the four [buf[..]] accesses
+     generate bounds VCs, discharged from the precondition. Byte range ⇒ the
+     result is a non-negative 32-bit int. *)
+  let read_u32 (buf : array int) (pos : int) : int
+    requires { 0 <= pos }
+    requires { pos + 4 <= length buf }
+    requires { is_byte_array buf }
+    ensures  { 0 <= result <= 4294967295 }
+  = buf[pos] + 256 * buf[pos + 1] + 65536 * buf[pos + 2]
+    + 16777216 * buf[pos + 3]
+
+  (* decrypt_int XORs the raw LE word with the running key; XOR of a 32-bit value
+     with a 32-bit key is again a 32-bit value, so the decrypted word keeps the
+     read_u32 range. name_len is thus a non-negative 32-bit int: a corrupt
+     high-bit length stays POSITIVE and is caught by the bounds check rather than
+     forming a negative index. The running-key advance is irrelevant to
+     bounds/termination, so the word is abstracted by its range only. *)
+  val decrypt_int (_raw : int) : int
+    ensures { 0 <= result <= 4294967295 }
+
+  (* Mirrors Rgssad_core.parse line-for-line: the leading [pos+4>len] guard, the
+     [name_len<0 || pos+name_len>len] check, a SEPARATE [pos+4>len] guard before
+     the size word, and [size<0 || pos+size>len] STOPPING the loop (keep:=false)
+     rather than reading past EOF. *)
+  let parse_loop (buf : array int) : (endpos : int)
+    requires { length buf >= 8 }
+    requires { is_byte_array buf }
+    ensures  { 0 <= endpos <= length buf }
+  = let len = length buf in
+    let pos = ref 8 in
+    let keep = ref true in
+    while !keep do
+      invariant { 8 <= !pos <= len }
+      variant   { len - !pos, (if !keep then 1 else 0) }
+      if !pos + 4 > len then keep := false
+      else begin
+        (* name_len = DecryptInteger; then advance past the word. *)
+        let raw_nlen = read_u32 buf !pos in
+        let name_len = decrypt_int raw_nlen in
+        pos := !pos + 4;
+        if name_len < 0 || !pos + name_len > len then keep := false
+        else begin
+          (* name occupies [pos, pos+name_len); guarded by the check above. *)
+          pos := !pos + name_len;
+          (* size needs its own u32; if it would run past EOF the table ends. *)
+          if !pos + 4 > len then keep := false
+          else begin
+            let raw_size = read_u32 buf !pos in
+            let size = decrypt_int raw_size in
+            pos := !pos + 4;
+            (* a size past EOF stops the loop (no read past the buffer). *)
+            if size < 0 || !pos + size > len then keep := false
+            else pos := !pos + size
+          end
+        end
+      end
+    done;
+    !pos
+end
+
+module VxaceParseLoop
+  (* Source-faithful transcription of Vxace.parse's entry loop (16-byte stride,
+     start at 12, terminator = decoded offset = 0). Field decode is XOR with the
+     master key; XOR of two 32-bit values is a 32-bit value, so the decoded
+     name_len is a non-negative 32-bit int — the only fact the bounds/termination
+     proof needs. That range is itself a BV32 property (see CryptoInvolution). *)
+  use int.Int
+  use ref.Ref
+  use array.Array
+
+  predicate is_byte_array (buf : array int) =
+    forall k. 0 <= k < length buf -> 0 <= buf[k] <= 255
+
+  let read_u32 (buf : array int) (pos : int) : int
+    requires { 0 <= pos }
+    requires { pos + 4 <= length buf }
+    requires { is_byte_array buf }
+    ensures  { 0 <= result <= 4294967295 }
+  = buf[pos] + 256 * buf[pos + 1] + 65536 * buf[pos + 2]
+    + 16777216 * buf[pos + 3]
+
+  (* decode_u32 raw master = raw lxor master: a 32-bit value (abstracted by its
+     range, which is what the loop needs; the bit-exact model is BV32). *)
+  val decode_u32 (_raw _master : int) : int
+    ensures { 0 <= result <= 4294967295 }
+
+  let parse_loop (buf : array int) (master : int) : (endpos : int)
+    requires { length buf >= 12 }
+    requires { is_byte_array buf }
+    ensures  { 0 <= endpos <= length buf }
+  = let len = length buf in
+    let pos = ref 12 in
+    let keep = ref true in
+    while !keep do
+      invariant { 12 <= !pos <= len }
+      variant   { len - !pos, (if !keep then 1 else 0) }
+      if !pos + 16 > len then keep := false
+      else begin
+        let raw_off = read_u32 buf !pos in
+        let _raw_size = read_u32 buf (!pos + 4) in
+        let _raw_ekey = read_u32 buf (!pos + 8) in
+        let raw_nlen = read_u32 buf (!pos + 12) in
+        let off = decode_u32 raw_off master in
+        let nlen = decode_u32 raw_nlen master in
+        pos := !pos + 16;
+        if off = 0 then keep := false
+        else if !pos + nlen > len then keep := false (* Truncated: acc:=[] *)
+        else pos := !pos + nlen
+      end
+    done;
+    !pos
 end

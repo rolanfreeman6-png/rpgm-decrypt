@@ -48,6 +48,15 @@ Thumbs.db
 fixtures-real/
 games-real/
 
+# Track-0 golden-test fixtures (proprietary RTP/archive content; point
+# RPGM_FIXTURES_DIR at a local copy — never commit the archives themselves)
+fixtures/
+ocaml/fixtures/
+ocaml/test/fixtures/
+*.rgssad
+*.rgss2a
+*.rgss3a
+
 # Generated synthetic-game smoke artifacts (held on D:/rpgm-decrypt-tmp, never in repo)
 smoke-CLI/
 

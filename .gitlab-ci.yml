@@ -213,7 +213,7 @@ ocaml-coverage:
 # derive_master_key = u32(seed*9+3), read_u32_le LE formula, the Zip-Slip
 # invariant (normalize never yields a ".." component — a program proof with the
 # invariant as the postcondition), and rgssad_core read_entry/advance bounds.
-# Verified locally (see ocaml/proofs/proof_output.txt: 23/23 Valid). Manual +
+# Verified locally (see ocaml/proofs/proof_output.txt: 103/103 Valid). Manual +
 # allow_failure so a Linux Z3/version quirk never blocks the pipeline; a real
 # proof regression surfaces in the job log.
 ocaml-why3-proof:

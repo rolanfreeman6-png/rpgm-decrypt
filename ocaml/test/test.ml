@@ -197,6 +197,92 @@ let test_xp_vx () =
   check "rgssad read_u32_le 0x12345678"
     (Rgssad_core.read_u32_le b32 0 = 0x12345678)
 
+(* ---- Track 0: golden tests on REAL reference archives ----------------- *)
+(* Ground truth (RPGMakerDecrypter corpus). Real ciphertext -> known TOC +
+   valid Ruby Marshal payloads: this validates the descriptor formula itself,
+   not just the tool's own round-trip. Fixtures are NOT committed (proprietary
+   RTP content); point RPGM_FIXTURES_DIR at a local copy or have CI download
+   them. Absent fixtures => SKIP (not fail). Entry names are compared with the
+   forward-slash normalisation the parser applies. *)
+let fixtures_dir () =
+  match Sys.getenv_opt "RPGM_FIXTURES_DIR" with Some d -> d | None -> "fixtures"
+
+let test_rgssad_golden () =
+  let dir = fixtures_dir () in
+  let run_v1 tag fname exp3 =
+    let path = Filename.concat dir fname in
+    if not (Sys.file_exists path) then
+      Printf.printf "  SKIP %s golden (no fixture %s)\n" tag path
+    else begin
+      let buf = Io.read_file path in
+      match Rgssad_core.parse buf with
+      | Ok (entries, _) ->
+          check (tag ^ " golden count") (List.length entries = 16);
+          List.iter
+            (fun (i, name, off, sz, key) ->
+              let e = List.nth entries i in
+              check (Printf.sprintf "%s golden[%d] name" tag i)
+                (e.Rgssad_core.name = name);
+              check (Printf.sprintf "%s golden[%d] offset" tag i)
+                (e.Rgssad_core.offset = off);
+              check (Printf.sprintf "%s golden[%d] size" tag i)
+                (e.Rgssad_core.size = sz);
+              check (Printf.sprintf "%s golden[%d] key" tag i)
+                (e.Rgssad_core.key = key))
+            exp3;
+          let e0 = List.hd entries in
+          let plain = Rgssad_core.decrypt_data e0 (Rgssad_core.read_entry buf e0) in
+          check (tag ^ " golden marshal hdr")
+            (Bytes.length plain >= 2
+            && Bytes.get plain 0 = '\x04'
+            && Bytes.get plain 1 = '\x08')
+      | Error _ -> check (tag ^ " golden parse ok") false
+    end
+  in
+  run_v1 "XP" "Game.rgssad"
+    [
+      (0, "Data/Actors.rxdata", 34, 10981, 0x7B7448AE);
+      (1, "Data/Animations.rxdata", 11045, 136243, 0x366D564E);
+      (2, "Data/Armors.rxdata", 147314, 4285, 0x222699FE);
+    ];
+  run_v1 "VX" "Game.rgss2a"
+    [
+      (0, "Data/Actors.rvdata", 34, 10887, 0x7B7448AE);
+      (1, "Data/Animations.rvdata", 10951, 128304, 0x366D564E);
+      (2, "Data/Areas.rvdata", 139280, 4, 0x04E0F16D);
+    ];
+  let path = Filename.concat dir "Game.rgss3a" in
+  if not (Sys.file_exists path) then
+    Printf.printf "  SKIP VXAce golden (no fixture %s)\n" path
+  else begin
+    let buf = Io.read_file path in
+    match Vxace.parse buf with
+    | Ok entries ->
+        check "VXAce golden count" (List.length entries = 16);
+        List.iter
+          (fun (i, name, off, sz, key) ->
+            let e = List.nth entries i in
+            check (Printf.sprintf "VXAce golden[%d] name" i)
+              (e.Vxace.name = name);
+            check (Printf.sprintf "VXAce golden[%d] offset" i)
+              (e.Vxace.offset = off);
+            check (Printf.sprintf "VXAce golden[%d] size" i)
+              (e.Vxace.size = sz);
+            check (Printf.sprintf "VXAce golden[%d] key" i) (e.Vxace.key = key))
+          [
+            (0, "Data\\Actors.rvdata2", 605, 3032, 0x00000029);
+            (1, "Data\\Animations.rvdata2", 3637, 218459, 0x00004823);
+            (2, "Data\\Armors.rvdata2", 222096, 11472, 0x000018BE);
+          ];
+        let e0 = List.hd entries in
+        let plain = Vxace.decrypt_payload e0 (Vxace.read_entry buf e0) in
+        check "VXAce golden marshal hdr"
+          (Bytes.length plain >= 2
+          && Bytes.get plain 0 = '\x04'
+          && Bytes.get plain 1 = '\x08')
+    | Error _ -> check "VXAce golden parse ok" false
+  end
+
 (* ---- VX Ace ---------------------------------------------------------- *)
 let test_vxace () =
   let master = 3 in
@@ -631,6 +717,7 @@ let () =
   test_mv ();
   test_mv_real_format ();
   test_xp_vx ();
+  test_rgssad_golden ();
   test_classify ();
   test_key_discovery ();
   test_vxace ();

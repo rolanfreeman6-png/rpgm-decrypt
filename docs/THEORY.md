@@ -24,8 +24,8 @@ away. We are not helping.
 ## 2. Magic-byte table
 
 ```
-RPG Maker XP         RGSSAD\x00\x01           + filename-encrypted-as-XOR
-RPG Maker VX         RGSSAD\x00\x02           + entries table
+RPG Maker XP         RGSSAD\x00\x01           + rolling-key XOR stream
+RPG Maker VX         RGSSAD\x00\x01           + same v1 format as XP (no 0x02)
 RPG Maker VX Ace     RGSSAD\x00\x03           + entries table
 RPG Maker MV asset   RPGMV.... (16 B header)  + XOR-encrypted payload
 RPG Maker MV (alt)   RPGMZ.... (16 B header)  + XOR-encrypted payload
@@ -211,3 +211,22 @@ through unchanged.
   re-allocated per byte).
 - Key bytes are zeroized after use via `Crypto.zeroFill` (called from
   `the CLI module` once the run completes).
+
+### Formally verified guarantees (Why3 + Z3, `proofs/rpgm_proof.mlw`)
+
+The pure core carries machine-checked proofs (103/103 goals `Valid`; see
+`ocaml/proofs/`). What is *proved* vs. what is *validated empirically*:
+
+- **Proved (format-independent — hold on any input, including hostile bytes):**
+  no out-of-bounds read and guaranteed termination of the `Rgssad_core.parse`
+  and `Vxace.parse` entry loops (source-faithful WhyML transcriptions, with a
+  lexicographic `variant` and `0 ≤ end_pos ≤ len` postcondition); a corrupt
+  high-bit length stays a positive 32-bit int and is caught by the bounds check
+  (`read_u32_le_range`); the stream-cipher **involution** (encrypt∘decrypt = id,
+  because the keystream is a pure function of position, proved over `BV8`/`BV32`);
+  `derive_master_key = u32(seed*9+3)`; and the Zip-Slip invariant on `normalize`.
+- **Validated empirically (format-dependent — that the algorithm matches *real*
+  archives):** the Track-0 golden tests (`test/test.ml`, `RPGM_FIXTURES_DIR`)
+  decrypt real XP/VX/VX Ace reference archives and check the recovered TOC and
+  Ruby `Marshal` (`\x04\x08`) payloads byte-for-byte. This — not the proofs —
+  is what confirms the descriptor formula itself.
