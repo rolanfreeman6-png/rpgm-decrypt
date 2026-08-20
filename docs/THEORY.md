@@ -149,8 +149,9 @@ which we decrypt and write out per entry.
      encryptionKey = "<32 hex>"                        (fallback shape)
 4. Every *.js under www/js, then every *.js under www/ (AllDirectories) —
    same regex scan, first hit wins.
-5. If none match: exit 4 with a clear message (supply --password /
-   --password-file / --vxace-seed).
+5. If none match: exit 4 with a clear message (supply --password or
+   --password-file for MV/MZ; `--vxace-seed` only verifies a VX Ace archive's
+   embedded seed).
 ```
 
 We never evaluate JavaScript — only extract string literals.
@@ -219,7 +220,7 @@ The pure core carries machine-checked proofs (103/103 goals `Valid`; see
 
 - **Proved (format-independent — hold on any input, including hostile bytes):**
   no out-of-bounds read and guaranteed termination of the `Rgssad_core.parse`
-  and `Vxace.parse` entry loops (source-faithful WhyML transcriptions, with a
+  and `Vxace.parse` entry loops (bounds-faithful WhyML abstractions, with a
   lexicographic `variant` and `0 ≤ end_pos ≤ len` postcondition); a corrupt
   high-bit length stays a positive 32-bit int and is caught by the bounds check
   (`read_u32_le_range`); the stream-cipher **involution** (encrypt∘decrypt = id,

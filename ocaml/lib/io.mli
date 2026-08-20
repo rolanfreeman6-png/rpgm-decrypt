@@ -1,7 +1,7 @@
 (** Small binary file helpers.
 
-    Thin wrappers over stdlib binary channels, used throughout the library for
-    reading whole files into [bytes] and writing [bytes] atomically. *)
+     Thin wrappers over stdlib binary channels, used throughout the library for
+     reading whole files into [bytes] and writing [bytes]. *)
 
 val read_file : string -> bytes
 (** [read_file path] is the full contents of [path] as bytes.

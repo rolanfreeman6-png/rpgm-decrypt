@@ -48,14 +48,21 @@ let parse (buf : bytes) : (entry list * int, parse_error) result =
     let idx = ref 0 in
     let acc = ref [] in
     let keep = ref true in
+    let malformed = ref false in
     while !keep do
       (* need a u32 name_len; otherwise we've reached the end of the stream *)
-      if !pos + 4 > len then keep := false
+      if !pos + 4 > len then begin
+        if !pos <> len then malformed := true;
+        keep := false
+      end
       else begin
         let name_len = read_u32_le buf !pos lxor !key in
         key := advance !key;
         pos := !pos + 4;
-        if name_len < 0 || !pos + name_len > len then keep := false
+        if name_len < 0 || !pos + name_len > len then begin
+          malformed := true;
+          keep := false
+        end
         else begin
           let name = Bytes.create name_len in
           for i = 0 to name_len - 1 do
@@ -64,13 +71,19 @@ let parse (buf : bytes) : (entry list * int, parse_error) result =
             key := advance !key
           done;
           pos := !pos + name_len;
-          if !pos + 4 > len then keep := false
+          if !pos + 4 > len then begin
+            if !pos <> len then malformed := true;
+            keep := false
+          end
           else begin
             let size = read_u32_le buf !pos lxor !key in
             key := advance !key;
             pos := !pos + 4;
             let data_key = !key in
-            if size < 0 || !pos + size > len then keep := false
+            if size < 0 || !pos + size > len then begin
+              malformed := true;
+              keep := false
+            end
             else begin
               acc :=
                 {
@@ -91,16 +104,17 @@ let parse (buf : bytes) : (entry list * int, parse_error) result =
         end
       end
     done;
-    match !acc with [] -> Error Truncated | l -> Ok (List.rev l, !pos)
+    if !malformed then Error Truncated
+    else match !acc with [] -> Error Truncated | l -> Ok (List.rev l, !pos)
   end
 
 (** Extract raw (still-encrypted) payload bytes for one entry. *)
 let read_entry (buf : bytes) (e : entry) : bytes =
   let start = e.offset in
   let len = Bytes.length buf in
-  if start < 0 || start >= len then Bytes.create 0
+  if start < 0 || start >= len || e.size <= 0 then Bytes.create 0
   else begin
-    let size = if start + e.size > len then len - start else e.size in
+    let size = min e.size (len - start) in
     Bytes.sub buf start size
   end
 

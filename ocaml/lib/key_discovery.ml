@@ -4,6 +4,12 @@
 
 type key_result = Found of bytes * string | NotFound of string
 
+let is_regular_file (path : string) : bool =
+  try (Unix.lstat path).Unix.st_kind = Unix.S_REG with _ -> false
+
+let is_real_directory (path : string) : bool =
+  try (Unix.lstat path).Unix.st_kind = Unix.S_DIR with _ -> false
+
 (* ---- regexes for the key literal scan -------------------------------- *)
 let re1 =
   Re.Pcre.re ~flags:[ `CASELESS ]
@@ -25,7 +31,7 @@ let try_read_json_key (json_text : string) : string option =
   with _ -> None
 
 let try_system_json (path : string) : key_result =
-  if not (Sys.file_exists path) then
+  if not (is_regular_file path) then
     NotFound (Printf.sprintf "no System.json at %s" path)
   else
     try
@@ -43,7 +49,7 @@ let try_system_json (path : string) : key_result =
            (Printexc.to_string e))
 
 let try_js_scan (path : string) : key_result =
-  if not (Sys.file_exists path) then
+  if not (is_regular_file path) then
     NotFound (Printf.sprintf "no file at %s" path)
   else
     try
@@ -67,12 +73,13 @@ let is_found = function Found _ -> true | _ -> false
 
 (* *.js anywhere under [dir]. *)
 let rec js_recursive (dir : string) : string list =
-  if Sys.file_exists dir && try Sys.is_directory dir with _ -> false then
+  if is_real_directory dir then
     Sys.readdir dir |> Array.to_list
     |> List.concat_map (fun n ->
         let p = Filename.concat dir n in
-        if try Sys.is_directory p with _ -> false then js_recursive p
-        else if Filename.check_suffix (String.lowercase_ascii n) ".js" then
+        if is_real_directory p then js_recursive p
+        else if is_regular_file p
+                && Filename.check_suffix (String.lowercase_ascii n) ".js" then
           [ p ]
         else [])
   else []
@@ -85,7 +92,7 @@ let discover (game_dir : string) : key_result =
   (* Candidate roots: the www/ subdir (if present) first, then the game dir. *)
   let roots =
     let www = Filename.concat game_dir "www" in
-    if Sys.file_exists www && (try Sys.is_directory www with _ -> false) then
+    if is_real_directory www then
       [ www; game_dir ]
     else [ game_dir ]
   in
@@ -132,15 +139,14 @@ let discover (game_dir : string) : key_result =
 let first_encrypted_sample (game_dir : string) : bytes option =
   let exts = [ ".png_"; ".ogg_"; ".m4a_"; ".rpgmvp"; ".rpgmvo"; ".rpgmvm" ] in
   let rec find_in dir =
-    if not (Sys.file_exists dir && try Sys.is_directory dir with _ -> false)
-    then None
+    if not (is_real_directory dir) then None
     else begin
       let names = try Array.to_list (Sys.readdir dir) with _ -> [] in
       let here =
         List.filter
           (fun n ->
             let p = Filename.concat dir n in
-            (try not (Sys.is_directory p) with _ -> false)
+            (is_regular_file p)
             && List.mem (String.lowercase_ascii (Filename.extension p)) exts)
           names
       in
@@ -149,7 +155,12 @@ let first_encrypted_sample (game_dir : string) : bytes option =
           let p = Filename.concat dir n in
           try
             let raw = Io.read_file p in
-            if Bytes.length raw >= 16 then Some (Bytes.sub raw 0 16) else None
+            (* A real MV asset needs the 16-byte marker plus the first 16
+               encrypted payload bytes; a legacy whole-file XOR asset needs only
+               the latter. Keep enough bytes for both schemes. *)
+            if Bytes.length raw >= 16 then
+              Some (Bytes.sub raw 0 (min 32 (Bytes.length raw)))
+            else None
           with _ -> None)
       | [] ->
           List.fold_left
@@ -158,7 +169,7 @@ let first_encrypted_sample (game_dir : string) : bytes option =
               | Some _ -> acc
               | None ->
                   let p = Filename.concat dir n in
-                  if try Sys.is_directory p with _ -> false then find_in p
+                   if is_real_directory p then find_in p
                   else None)
             None names
     end
@@ -192,8 +203,12 @@ let discover_with_wordlist (game_dir : string) (wordlist : string array) :
                 if String.length trimmed = 32 then
                   try
                     let k = Crypto.decode_hex_key trimmed in
-                    let t = Crypto.xor_transform k sample in
-                    if Crypto.looks_like_plaintext t then
+                    let valid =
+                      match Mv.decrypt k sample with
+                      | Mv.Decrypted _ -> true
+                      | Mv.Plaintext _ | Mv.Unsure _ -> false
+                    in
+                    if valid then
                       answer :=
                         Found
                           ( k,

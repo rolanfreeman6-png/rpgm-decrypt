@@ -4,7 +4,7 @@
 # plus a manual Windows opam job), then fuzzed and formally verified. GitLab is
 # the build/test farm; GitHub is the clean distribution channel: `github-mirror`
 # pushes the tested ref over SSH, and a `v*` tag triggers the GitHub Actions
-# release workflow that builds the static-musl flagship binary.
+# release workflow that publishes the release binaries.
 
 # GitLab-managed security scanners (Ultimate). SAST analyses the source, Secret
 # Detection scans history for leaked credentials. Results land in Security &
@@ -144,17 +144,15 @@ ocaml-fuzz-weekly:
 
 # ---- OCaml verification: property tests + Gospel spec type-check (Linux/opam) -
 # opam-based (qcheck and gospel are not in the ubuntu apt set used by
-# ocaml-build-test). Builds the library, runs the 72 behavioural checks + the 12
+# ocaml-build-test). Builds the library, runs the 103 behavioural checks + the 12
 # QCheck2 properties, then `gospel check` on every spec'd .mli. On Linux gospel
 # exits 0 cleanly (the Windows/mingw `output_value` marshal bug does not occur).
-# allow_failure so opam-env quirks never block the pipeline; a real spec or
-# property failure still surfaces in the job log.
+# This job is a blocking verification gate for mirrors and releases.
 ocaml-verification:
   stage: test
   image: ocaml/opam:debian-12-ocaml-5.3
-  allow_failure: true
   before_script:
-    - opam install -y dune camlzip yojson re qcheck gospel
+    - opam install -y dune camlzip yojson re qcheck gospel.0.3.1
   script:
     - cd ocaml
     - eval $(opam env)
@@ -173,7 +171,7 @@ ocaml-verification:
     - gospel check lib/report.mli -L /tmp/gci
 
 # ---- OCaml code coverage (bisect_ppx) — Linux/opam, manual ------------------
-# Instruments the library with bisect_ppx, runs the 72 behavioural checks + 12
+# Instruments the library with bisect_ppx, runs the 103 behavioural checks + 12
 # QCheck properties under instrumentation, and generates an HTML coverage
 # report + Cobertura XML (bisect_ppx 2.8.x emits html/cobertura/coveralls/
 # summary; it dropped native LCOV output). The committed snapshot lives in
@@ -203,7 +201,7 @@ ocaml-coverage:
       - ocaml/coverage.cobertura.xml
     expire_in: 2 weeks
 
-# ---- OCaml deductive verification (Why3 + Z3) — manual, Linux --------------
+# ---- OCaml deductive verification (Why3 + Z3) — Linux gate -----------------
 # Cameleer is not in the opam repository (no `cameleer` package), so instead of
 # cameleer's auto OCaml->WhyML translation we prove the contracts in a
 # hand-written WhyML model: ocaml/proofs/rpgm_proof.mlw. The axiomatised Gospel
@@ -213,14 +211,11 @@ ocaml-coverage:
 # derive_master_key = u32(seed*9+3), read_u32_le LE formula, the Zip-Slip
 # invariant (normalize never yields a ".." component — a program proof with the
 # invariant as the postcondition), and rgssad_core read_entry/advance bounds.
-# Verified locally (see ocaml/proofs/proof_output.txt: 103/103 Valid). Manual +
-# allow_failure so a Linux Z3/version quirk never blocks the pipeline; a real
-# proof regression surfaces in the job log.
+# The committed output records 103/103 Valid; this job reruns the proof as a
+# blocking gate rather than treating the captured output as sufficient evidence.
 ocaml-why3-proof:
   stage: test
   image: ocaml/opam:debian-12-ocaml-5.3
-  when: manual
-  allow_failure: true
   before_script:
     - sudo apt-get update -qq && sudo apt-get install -y -qq z3
     - opam install -y why3
@@ -229,23 +224,20 @@ ocaml-why3-proof:
     - cd ocaml
     - eval $(opam env)
     - echo "=== why3 prove (z3, split_goal_full) ==="
-    - why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw
-    - echo "=== count discharged goals ==="
-    - 'why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw 2>&1 | grep -cE "Prover result is: Valid" || true'
+    - why3 prove -P z3 -a split_goal_full -t 30 proofs/rpgm_proof.mlw > /tmp/why3-proof.log 2>&1
+    - cat /tmp/why3-proof.log
+    - 'VALID=$(grep -cE "Prover result is: Valid" /tmp/why3-proof.log || true); echo "valid_goals=${VALID}"; test "${VALID}" -eq 103'
+    - '! grep -Eq "Prover result is: (Unknown|Failure|Timeout|HighFailure)" /tmp/why3-proof.log'
 
 # ---- Mirror to GitHub (source + tags) via SSH deploy key -------------------
 # GitLab is the build/test farm (OCaml tests, fuzz, verification). GitHub is
 # the clean distribution channel. This job mirrors the tested ref to GitHub
 # over SSH using a deploy key (NO PAT needed): a push to main mirrors main; a
 # tag push mirrors the tag, which TRIGGERS the GitHub Actions release workflow
-# (.github/workflows/ci.yml) that builds the OCaml static flagship and creates
+# (.github/workflows/release.yml) that builds the OCaml release artifacts and creates
 # the GitHub Release with the auto-provided GITHUB_TOKEN.
 #
-# Runs only after the hard Linux gate (OCaml build + behavioural) is green. The
-# allow_failure jobs (ocaml-fuzz, ocaml-verification, ocaml-build-test-windows)
-# run alongside but do not block the mirror, so afl/opam env quirks never stall
-# shipping. The GitHub Actions release re-runs the build + behavioural as its own
-# gate before publishing.
+# Runs only after the hard Linux build, property/Gospel, and Why3 gates are green.
 #
 # Required CI/CD variable (GitLab -> Settings -> CI/CD -> Variables):
 #   GH_SSH_PRIVATE_KEY  the SSH PRIVATE key matching the GitHub deploy key on
@@ -257,6 +249,8 @@ github-mirror:
   image: alpine:3.20
   needs:
     - job: ocaml-build-test
+    - job: ocaml-verification
+    - job: ocaml-why3-proof
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
     - if: $CI_COMMIT_BRANCH == "main"
@@ -303,6 +297,8 @@ release-linux:
   image: alpine:3.20
   needs:
     - job: ocaml-build-test
+    - job: ocaml-verification
+    - job: ocaml-why3-proof
   rules:
     - if: $CI_COMMIT_TAG =~ /^v\d+/
   script:
@@ -337,6 +333,8 @@ release-windows:
     - saas-windows-medium-amd64
   needs:
     - job: ocaml-build-test
+    - job: ocaml-verification
+    - job: ocaml-why3-proof
   allow_failure: true
   timeout: 2h
   rules:

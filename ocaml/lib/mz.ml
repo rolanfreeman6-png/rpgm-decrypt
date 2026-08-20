@@ -37,7 +37,16 @@ let decrypt_all (key : bytes) (z : Zip.in_file) :
           if e.Zip.is_directory then None
           else begin
             let cipher = Bytes.of_string (Zip.read_entry z e) in
-            let plain, kind = Mv.decrypt_bytes key cipher in
+            let plain, kind =
+              match Mv.decrypt key cipher with
+              | Mv.Plaintext (kind, bytes) -> (bytes, kind)
+              | Mv.Decrypted (kind, bytes) -> (bytes, kind)
+              | Mv.Unsure _ ->
+                  invalid_arg
+                    (Printf.sprintf
+                       "unrecognized decrypted media signature in %s"
+                       e.Zip.filename)
+            in
             Some
               {
                 entry_name = e.Zip.filename;

@@ -18,6 +18,8 @@ type config = {
   game_dir : string;
   out_dir : string;
   key : bytes;
+  key_available : bool;
+  vxace_master_key : int option;
   key_source : string;
   dry_run : bool;
   mirror : bool;
@@ -27,8 +29,12 @@ type config = {
     writes. When [mirror] is set, the whole game tree is cloned into [out_dir]
     first (preserving every non-asset file), the encrypted assets are decrypted
     in place, and each [System.json]'s [hasEncryptedImages]/[hasEncryptedAudio]
-    flags are cleared so the copy is playable as-is. When [mirror] is [false]
-    only the decrypted assets are written (assets-only mode). *)
+    flags are cleared so the copy is playable as-is. [key_available] must be
+    [false] when no MV/MZ key was recovered; MV/MZ inputs are then reported as
+    failures instead of being processed with a placeholder key. When
+    [vxace_master_key] is [Some], every VX Ace archive's embedded seed is checked
+    against it. When [mirror] is [false] only the decrypted assets are written
+    (assets-only mode). *)
 
 val mkdir_p : string -> unit
 (** [mkdir_p dir] creates [dir] and parents (like [mkdir -p]); no-op if it

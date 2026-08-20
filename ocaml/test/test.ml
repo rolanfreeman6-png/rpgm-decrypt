@@ -1,4 +1,4 @@
-(* In-process test runner: 72 behavioural checks over crypto, parsers, MZ,
+(* In-process test runner: 103 behavioural checks over crypto, parsers, MZ,
    end-to-end Report.run, safe_join, and read_u32_le. *)
 
 open Rpgm
@@ -55,7 +55,15 @@ let test_crypto () =
     (raises (fun () -> Crypto.decode_hex_key "zz23456789abcdef0123456789abcdef"));
   check "xorTransform rejects empty key"
     (raises (fun () ->
-         Crypto.xor_transform (Bytes.create 0) (Bytes.of_string "ab")))
+         Crypto.xor_transform (Bytes.create 0) (Bytes.of_string "ab")));
+  check "subArrayEq rejects negative offset"
+    (not
+       (Crypto.sub_array_eq (-1) 1 (Bytes.of_string "a")
+          (Bytes.of_string "a")));
+  check "subArrayEq rejects negative length"
+    (not
+       (Crypto.sub_array_eq 0 (-1) (Bytes.of_string "a")
+          (Bytes.of_string "a")))
 
 (* ---- Mv -------------------------------------------------------------- *)
 let test_mv () =
@@ -195,7 +203,22 @@ let test_xp_vx () =
   let b32 = Bytes.make 4 '\000' in
   set_u32le b32 0 0x12345678;
   check "rgssad read_u32_le 0x12345678"
-    (Rgssad_core.read_u32_le b32 0 = 0x12345678)
+    (Rgssad_core.read_u32_le b32 0 = 0x12345678);
+  check "rgssad truncated payload rejected"
+    (match Xp.parse (Bytes.sub buf 0 (Bytes.length buf - 1)) with
+    | Error Rgssad_core.Truncated -> true
+    | _ -> false);
+  check "rgssad partial trailing field rejected"
+    (match Xp.parse (Bytes.cat buf (Bytes.of_string "\000")) with
+    | Error Rgssad_core.Truncated -> true
+    | _ -> false);
+  let malformed_entry : Rgssad_core.entry =
+    { index = 0; name = "x"; offset = 0; size = -1; key = 0 }
+  in
+  check "rgssad read_entry rejects negative size"
+    (Bytes.length
+       (Rgssad_core.read_entry (Bytes.of_string "x") malformed_entry)
+    = 0)
 
 (* ---- Track 0: golden tests on REAL reference archives ----------------- *)
 (* Ground truth (RPGMakerDecrypter corpus). Real ciphertext -> known TOC +
@@ -331,7 +354,11 @@ let test_vxace () =
        Vxace.parse
          (Bytes.of_string "\x52\x47\x53\x53\x41\x44\x00\x01\x00\x00\x00\x00")
      with
-    | Error (Vxace.BadVersion 1) -> true
+   | Error (Vxace.BadVersion 1) -> true
+    | _ -> false);
+  check "vxace truncated payload rejected"
+    (match Vxace.parse (Bytes.sub buf 0 (Bytes.length buf - 1)) with
+    | Error Vxace.Truncated -> true
     | _ -> false);
   (* master-key formula *)
   check "deriveMasterKey seed0"
@@ -372,6 +399,8 @@ let test_report () =
     (Report.safe_join "/tmp/out" "www/img/a.png" <> None);
   check "safeJoin traversal blocked"
     (Report.safe_join "/tmp/out" "../../evil.txt" = None);
+  check "safeJoin root allows descendant"
+    (Report.safe_join "/" "tmp/out.txt" = Some "/tmp/out.txt");
   (* MV end-to-end round-trip *)
   let root = Filename.temp_dir "rpgm" "e2e" in
   let game = Filename.concat root "game" in
@@ -396,6 +425,8 @@ let test_report () =
         Report.game_dir = game;
         out_dir = out;
         key;
+        key_available = true;
+        vxace_master_key = None;
         key_source = "test";
         dry_run = false;
         mirror = false;
@@ -428,6 +459,8 @@ let test_report () =
         Report.game_dir = game2;
         out_dir = out2;
         key;
+        key_available = true;
+        vxace_master_key = None;
         key_source = "test";
         dry_run = false;
         mirror = false;
@@ -562,9 +595,34 @@ let test_key_discovery () =
     (Filename.concat (Filename.concat mz_root "data") "System.json")
     (Bytes.of_string {|{ "encryptionKey": "deadbeef00112233445566778899aabb" }|});
   match Key_discovery.discover mz_root with
-  | Key_discovery.Found (b, _) ->
-      check "kd MZ root layout (no www)" (Bytes.get b 0 = '\xde')
-  | _ -> check "kd MZ root layout found" false
+   | Key_discovery.Found (b, _) ->
+       check "kd MZ root layout (no www)" (Bytes.get b 0 = '\xde')
+   | _ -> check "kd MZ root layout found" false
+
+let test_key_discovery_real_header () =
+  let root = Filename.temp_dir "rpgm" "kdheader" in
+  let img = Filename.concat (Filename.concat root "www") "img" in
+  Report.mkdir_p img;
+  let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
+  let png = bytes_of_hex "89504E470D0A1A0A0000000D49484452" in
+  let body = Bytes.copy png in
+  for i = 0 to min 15 (Bytes.length body - 1) do
+    Bytes.set body i
+      (Char.chr
+         (Char.code (Bytes.get body i) lxor Char.code (Bytes.get key i)))
+  done;
+  let header = bytes_of_hex "5250474d560000000003010000000000" in
+  Io.write_file (Filename.concat img "Hero.rpgmvp") (Bytes.cat header body);
+  match
+    Key_discovery.discover_with_wordlist root
+      [|
+        "00000000000000000000000000000000";
+        "deadbeef00112233445566778899aabb";
+      |]
+  with
+  | Key_discovery.Found (found, _) ->
+      check "kd wordlist real MV header" (Bytes.equal found key)
+  | _ -> check "kd wordlist real MV header found" false
 
 (* ---- MZ multi-entry order ------------------------------------------- *)
 let test_mz_multi () =
@@ -648,6 +706,8 @@ let test_mirror () =
         Report.game_dir = game;
         out_dir = out;
         key;
+        key_available = true;
+        vxace_master_key = None;
         key_source = "test";
         dry_run = false;
         mirror = true;
@@ -698,6 +758,8 @@ let test_mirror () =
         Report.game_dir = game;
         out_dir = out2;
         key;
+        key_available = true;
+        vxace_master_key = None;
         key_source = "test";
         dry_run = false;
         mirror = false;
@@ -711,6 +773,55 @@ let test_mirror () =
   in
   check "assets-only skips extraneous json" (not (Sys.file_exists map_out2))
 
+let test_unknown_decryption_is_failure () =
+  let root = Filename.temp_dir "rpgm" "unknown" in
+  let game = Filename.concat root "game" in
+  let img = Filename.concat game "img" in
+  Report.mkdir_p img;
+  let key = Crypto.decode_hex_key "deadbeef00112233445566778899aabb" in
+  Io.write_file (Filename.concat img "bad.png_")
+    (Crypto.xor_transform key (Bytes.of_string "not a media file"));
+  let out = Filename.concat root "out" in
+  let summary =
+    Report.run
+      {
+        Report.game_dir = game;
+        out_dir = out;
+        key;
+        key_available = true;
+        vxace_master_key = None;
+        key_source = "test";
+        dry_run = false;
+        mirror = false;
+        on_event = (fun _ -> ());
+      }
+  in
+  check "unknown MV decryption counted failed" (summary.Types.failed_count = 1);
+  check "unknown MV decryption not emitted"
+    (not (Sys.file_exists (Filename.concat out "img/bad.png")))
+
+let test_missing_key_is_failure () =
+  let root = Filename.temp_dir "rpgm" "nokey" in
+  let game = Filename.concat root "game" in
+  let img = Filename.concat game "img" in
+  Report.mkdir_p img;
+  Io.write_file (Filename.concat img "asset.rpgmvp") (Bytes.of_string "RPGMV");
+  let summary =
+    Report.run
+      {
+        Report.game_dir = game;
+        out_dir = Filename.concat root "out";
+        key = Bytes.make 16 '\000';
+        key_available = false;
+        vxace_master_key = None;
+        key_source = "none";
+        dry_run = false;
+        mirror = false;
+        on_event = (fun _ -> ());
+      }
+  in
+  check "missing MV key counted failed" (summary.Types.failed_count = 1)
+
 let () =
   test_crypto ();
   test_crypto_more ();
@@ -720,12 +831,15 @@ let () =
   test_rgssad_golden ();
   test_classify ();
   test_key_discovery ();
+  test_key_discovery_real_header ();
   test_vxace ();
   test_mz ();
   test_mz_multi ();
   test_log ();
   test_report ();
   test_mirror ();
+  test_unknown_decryption_is_failure ();
+  test_missing_key_is_failure ();
   Printf.printf "\n===== %d checks, %d passed, %d failed =====\n" !total !passed
     (List.length !fails);
   List.iter (fun n -> Printf.printf "  FAIL %s\n" n) (List.rev !fails);

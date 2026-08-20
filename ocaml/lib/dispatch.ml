@@ -2,15 +2,21 @@
 
 let classify (abs_path : string) : Types.format option =
   if not (Sys.file_exists abs_path) then None
-  else begin
-    let ext = String.lowercase_ascii (Filename.extension abs_path) in
-    let first_bytes =
-      let ic = open_in_bin abs_path in
-      let buf = Bytes.make 16 '\000' in
-      let n = input ic buf 0 16 in
-      close_in ic;
-      if n < 16 then Bytes.sub buf 0 n else buf
+  else
+    let read_head () =
+      try
+        let ic = open_in_bin abs_path in
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr ic)
+          (fun () ->
+            let buf = Bytes.make 16 '\000' in
+            let n = input ic buf 0 16 in
+            if n < 16 then Bytes.sub buf 0 n else buf)
+      with _ -> raise Exit
     in
+    try
+      let ext = String.lowercase_ascii (Filename.extension abs_path) in
+      let first_bytes = read_head () in
     let ver_at7 () =
       if Bytes.length first_bytes >= 8 then Char.code (Bytes.get first_bytes 7)
       else -1
@@ -42,7 +48,7 @@ let classify (abs_path : string) : Types.format option =
         else if Crypto.is_mv_magic_header first_bytes then Some Types.MV
         else if Crypto.is_mz_magic_header first_bytes then Some Types.MZ
         else None
-  end
+    with Exit -> None | _ -> None
 
 (** Decrypt a single MV/MZ asset. Returns (bytes, kind, was-decrypted). *)
 let decrypt_single (key : bytes) (abs_path : string) :
@@ -53,7 +59,10 @@ let decrypt_single (key : bytes) (abs_path : string) :
       match Mv.decrypt key bytes with
       | Mv.Plaintext (k, b) -> (b, k, false)
       | Mv.Decrypted (k, b) -> (b, k, true)
-      | Mv.Unsure b -> (b, "bin", true)
+       | Mv.Unsure _ ->
+           raise
+             (Invalid_argument
+                "decryption did not produce a recognized media signature")
     in
     Ok (out, kind, was)
   with e -> Error (Printexc.to_string e)

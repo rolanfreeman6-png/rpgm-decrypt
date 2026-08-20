@@ -1,6 +1,6 @@
 (* Property-based tests (QCheck2) for rpgm-decrypt.
 
-   These complement the 72 behavioural checks in [test/test.ml] with
+   These complement the 103 behavioural checks in [test/test.ml] with
    randomized invariant checks on the pure core: XOR involution, hex-key
    round-trip, VX-Ace key derivation, parser totality (never throws on arbitrary
    bytes), the Zip-Slip containment of [Report.safe_join], and the totality of

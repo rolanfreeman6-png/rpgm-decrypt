@@ -19,7 +19,8 @@ let magic_jpg = Bytes.of_string "\xFF\xD8\xFF"
 (** Equality of a fixed-size substring inside a larger buffer. *)
 let sub_array_eq (offset : int) (length : int) (expected : bytes) (arr : bytes)
     : bool =
-  if Bytes.length arr < offset + length then false
+  if offset < 0 || length < 0 then false
+  else if Bytes.length arr < offset + length then false
   else if Bytes.length expected < length then false
   else begin
     let ok = ref true in

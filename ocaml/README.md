@@ -38,7 +38,7 @@ ocaml/
            + a narrow .mli per module (Gospel specs in crypto/vxace_key/
              rgssad_core/dispatch/report .mli)
   bin/     main.ml                                   (= the CLI module, CLI)
-  test/    test.ml      (92 in-process behavioural checks)
+   test/    test.ml      (103 in-process behavioural checks)
            prop/prop.ml (12 QCheck2 property tests)
   fuzz/    fuzz.ml      (AFL-instrumented fuzz target)
 ```
@@ -60,7 +60,7 @@ opam install qcheck gospel
 
 ```sh
 dune build --profile release               # 0 warnings (strict flags + warn-error)
-dune exec --profile release test/test.exe  # 92 behavioural checks
+ dune exec --profile release test/test.exe  # 103 behavioural checks
 dune exec --profile release test/prop/prop.exe  # 12 QCheck2 properties (seed 42)
 dune exec --profile release bin/main.exe -- --help
 dune exec --profile release bin/main.exe -- <game_dir> <out_dir> \
@@ -73,7 +73,7 @@ manifest is `rpgm-decrypt.opam`.
 
 ## Formal verification & guarantees
 
-The 92 in-process behavioural checks are the source of truth, enforced on every
+The 103 in-process behavioural checks are the source of truth, enforced on every
 push; the layers below add static and formal
 guarantees on top of that. Each layer is honestly classified by what it
 actually verifies.
@@ -82,12 +82,12 @@ actually verifies.
 |---|---|---|
 | Narrow `.mli` interfaces | done, verified | Every `lib/` module has a documented public interface; internal helpers are hidden (see commit history). |
 | Strict compiler flags | done, verified | `-w +a-4-40-42-44-45-70 -strict-sequence -strict-formats -principal`, warnings-as-errors in the `release` profile. Build is warning-free (verified via `dune build --verbose`: every command carries `-warn-error +a-…`). |
-| Behavioural tests | done, verified | 92/92 checks pass (crypto, MV, XP/VX, VX Ace, MZ, end-to-end `Report.run`, `safe_join`, Zip-Slip block, `read_u32_le` high bytes, per-kind extension map). |
+| Behavioural tests | done, verified | 103/103 checks pass in the current bytecode verification run (crypto, MV, XP/VX, VX Ace, MZ, end-to-end `Report.run`, `safe_join`, Zip-Slip block, truncation rejection, key discovery, and per-kind extension map). |
 | QCheck properties | done, verified | 12/12 properties pass (seed 42): XOR involution + length, hex-key round-trip, `derive_master_key = u32(seed*9+3)` over 2³², `decode_payload` involution, parser/`Mv.decrypt`/`Vxace_key` totality (never throw on arbitrary bytes), `safe_join` containment (Zip-Slip), `choose_output_extension` totality. |
 | Mutation testing | done, verified | 7 directed mutants, 7/7 killed after two coverage-gap fixes (see `MUTATION_REPORT.md`). |
 | Gospel specs | done, type-check-verified locally; clean exit-0 on Linux CI | Specs on the pure core (see below). Gospel 0.3.1 on Windows/mingw crashes with `output_value: not a binary channel` *after* successful type-checking (a text-mode marshal bug); type errors are reported *before* the crash, so a spec is taken as valid when `gospel check`'s only failure is that crash (sanity-checked with a deliberately erroneous spec). The `ocaml-verification` CI job gives a clean exit 0 on Linux. |
 | ortac RAC | not run (tool not applicable) | `ortac qcheck-stm` (ortac 0.8.0) targets *stateful* APIs (needs a `sut`/`init_sut` model); the rpgm-decrypt core is stateless, so it does not apply. The `ortac wrapper` RAC command does not exist in 0.8.0. Runtime contract checking of the Gospel `ensures` is instead provided by the QCheck property suite, which evaluates the same contracts at runtime with 0 violations (e.g. `p_derive_master_key` ↔ `derive_master_key` ensures, `p_safe_join_*` ↔ `safe_join` containment). |
-| Why3 + Z3 proofs | done, verified locally (103/103 Valid) | Cameleer is not in the opam repository, so `ocaml-why3-proof` CI job runs a hand-written WhyML model (`proofs/rpgm_proof.mlw`) of the proof targets with the axiomatised helpers **defined** (`read_u32_le`, `u32`, `normalize`), discharged by Z3 (`why3 prove -P z3 -a split_goal_full`). All goals proved: `derive_master_key = u32(seed*9+3)`, `read_u32_le` LE formula, the **Zip-Slip invariant** (normalize never yields a `..` component — a program proof), `read_entry` clamped bounds, the **stream-cipher involution** (a position-only keystream XOR is self-inverse — over `BV8`/`BV32`, bit-exact), and **source-faithful `Rgssad_core.parse` / `Vxace.parse` loops** proved free of out-of-bounds reads and terminating on any input (`0 ≤ end_pos ≤ len`). See `proofs/README.md` + `proofs/proof_output.txt`. |
+| Why3 + Z3 proofs | historical artifact 103/103 Valid; CI gate configured | Cameleer is not in the opam repository, so `ocaml-why3-proof` runs a hand-written WhyML bounds model (`proofs/rpgm_proof.mlw`) with defined helpers (`read_u32_le`, `u32`, `normalize`), discharged by Z3 (`why3 prove -P z3 -a split_goal_full`). The model proves the listed arithmetic, containment, involution, guarded-read, and termination properties; complete archive acceptance remains covered by OCaml regression/golden tests. The committed output records 103/103 Valid; the current Windows environment lacks the configured Z3 executable, so a fresh local rerun is not claimed here. |
 
 ### Gospel specs — what is specified
 

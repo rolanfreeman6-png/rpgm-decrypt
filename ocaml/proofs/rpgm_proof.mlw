@@ -113,9 +113,9 @@ module PathContainment
 end
 
 module RgssadBounds
-  (* Models Rgssad_core.parse bounds + read_entry clamping. The parser only
-     advances pos while [pos + 12 <= len] and only reads name bytes while
-     [pos + name_len <= len]; read_entry clamps to [len]. *)
+   (* Models the bounds portion of Rgssad_core.parse + read_entry clamping. The
+      parser only reads fields under their explicit length guards; acceptance
+      of a complete archive is tested separately in the OCaml suite. *)
 
   use int.Int
   use int.MinMax
@@ -234,7 +234,7 @@ module U32Lemmas
 end
 
 module RgssadParseLoop
-  (* Source-faithful transcription of Rgssad_core.parse's entry loop (the
+   (* Bounds-faithful abstraction of Rgssad_core.parse's entry loop (the
      rewritten, real-fixture-validated v1 algorithm). Field order per entry is
      name_len -> name -> size (NOT the old size|offset|name_len layout); there is
      NO end-of-table sentinel and NO stream `offset` field (offset is derived
@@ -270,7 +270,7 @@ module RgssadParseLoop
   val decrypt_int (_raw : int) : int
     ensures { 0 <= result <= 4294967295 }
 
-  (* Mirrors Rgssad_core.parse line-for-line: the leading [pos+4>len] guard, the
+   (* Mirrors the parser's read guards: the leading [pos+4>len] guard, the
      [name_len<0 || pos+name_len>len] check, a SEPARATE [pos+4>len] guard before
      the size word, and [size<0 || pos+size>len] STOPPING the loop (keep:=false)
      rather than reading past EOF. *)
@@ -311,7 +311,7 @@ module RgssadParseLoop
 end
 
 module VxaceParseLoop
-  (* Source-faithful transcription of Vxace.parse's entry loop (16-byte stride,
+   (* Bounds-faithful abstraction of Vxace.parse's entry loop (16-byte stride,
      start at 12, terminator = decoded offset = 0). Field decode is XOR with the
      master key; XOR of two 32-bit values is a 32-bit value, so the decoded
      name_len is a non-negative 32-bit int — the only fact the bounds/termination

@@ -20,8 +20,13 @@ let parse (buf : bytes) : (entry list, parse_error) result =
     let idx = ref 0 in
     let acc = ref [] in
     let keep = ref true in
+    let terminated = ref false in
+    let malformed = ref false in
     while !keep do
-      if !pos + 16 > len then keep := false
+      if !pos + 16 > len then begin
+        if !pos <> len then malformed := true;
+        keep := false
+      end
       else begin
         let raw_off = read_u32_le buf !pos in
         pos := !pos + 4;
@@ -35,9 +40,16 @@ let parse (buf : bytes) : (entry list, parse_error) result =
         let sizev = Vxace_key.decode_u32 raw_size master in
         let ekey = Vxace_key.decode_u32 raw_ekey master in
         let nlen = Vxace_key.decode_u32 raw_namelen master in
-        if off = 0 then keep := false
+        if off = 0 then begin
+          terminated := true;
+          keep := false
+        end
+        else if off > len || sizev > len - off then begin
+          malformed := true;
+          keep := false
+        end
         else if !pos + nlen > len then begin
-          acc := [];
+          malformed := true;
           keep := false
         end
         else begin
@@ -51,7 +63,8 @@ let parse (buf : bytes) : (entry list, parse_error) result =
         end
       end
     done;
-    match !acc with [] -> Error Truncated | _ -> Ok (List.rev !acc)
+    if !malformed || not !terminated then Error Truncated
+    else match !acc with [] -> Error Truncated | _ -> Ok (List.rev !acc)
   end
 
 let parse_file (path : string) : (entry list, parse_error) result =
@@ -61,9 +74,9 @@ let parse_file (path : string) : (entry list, parse_error) result =
 let read_entry (buf : bytes) (e : entry) : bytes =
   let start = e.offset in
   let len = Bytes.length buf in
-  if start < 0 || start >= len then Bytes.create 0
+  if start < 0 || start >= len || e.size <= 0 then Bytes.create 0
   else begin
-    let size = if start + e.size > len then len - start else e.size in
+    let size = min e.size (len - start) in
     Bytes.sub buf start size
   end
 

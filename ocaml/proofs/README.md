@@ -70,7 +70,7 @@ analysis on `seg`/`acc` + the recursive call's ensures as the IH), and
 | `CryptoInvolution.payload_involution` | the concrete VX Ace payload decryptor is an involution for every entry key | Valid |
 | `U32Lemmas.u32_range` / `u32_idem` | `0 ≤ u32 x < 2³²`; `u32` idempotent | all Valid |
 | `U32Lemmas.read_u32_le_range` | byte-valued buffer ⇒ `0 ≤ read_u32_le ≤ 2³²−1` (a corrupt high-bit length stays positive) | Valid |
-| `RgssadParseLoop.read_u32'vc` / `parse_loop'vc` | source-faithful `Rgssad_core.parse` loop: every `buf[..]` access in bounds (no OOB), `while` terminates (lexicographic variant), `0 ≤ end_pos ≤ len` | all Valid |
+| `RgssadParseLoop.read_u32'vc` / `parse_loop'vc` | bounds-faithful `Rgssad_core.parse` abstraction: every `buf[..]` access in bounds (no OOB), `while` terminates (lexicographic variant), `0 ≤ end_pos ≤ len` | all Valid |
 | `VxaceParseLoop.read_u32'vc` / `parse_loop'vc` | same for `Vxace.parse` (16-byte stride, `offset=0` terminator) | all Valid |
 
 **Count:** `grep -c "Prover result is: Valid" proof_output.txt` = **103, all
@@ -89,10 +89,11 @@ the under-specified versions — a genuine proof finding, not a workaround.
 The I/O modules (`io`, `walk`, `mz`, `report.run`, `log`, `key_discovery`) are
 not given deductive specs — they are covered by the parity tests + 12 QCheck
 properties (see `ocaml/README.md` "Formal verification & guarantees"). The
-`RgssadParseLoop` / `VxaceParseLoop` models are source-faithful transcriptions
+`RgssadParseLoop` / `VxaceParseLoop` models are bounds-faithful abstractions
 of the OCaml `parse` loops (byte buffer = `array int` with values 0..255), so
-the no-OOB and termination proofs bind to the shipped control flow; they are
-still hand-written WhyML, not a mechanical translation (cameleer would provide
+the no-OOB and termination proofs bind to the guarded read control flow; they
+do not prove complete-archive acceptance or every payload-validity check. They
+are still hand-written WhyML, not a mechanical translation (cameleer would provide
 that, when it becomes installable). **Format correctness** — that the descriptor
 decodes a *real* XP/VX/VX Ace archive to the right bytes — is not a deductive
 property; it is validated empirically by the Track-0 golden tests in

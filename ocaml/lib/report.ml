@@ -6,6 +6,8 @@ type config = {
   game_dir : string;
   out_dir : string;
   key : bytes;
+  key_available : bool;
+  vxace_master_key : int option;
   key_source : string;
   dry_run : bool;
   mirror : bool;
@@ -13,21 +15,40 @@ type config = {
 }
 
 (* ---- filesystem helpers (mkdir -p, since OCaml's is single-level) ----- *)
+let file_kind (path : string) : Unix.file_kind option =
+  try Some (Unix.lstat path).Unix.st_kind with _ -> None
+
+let is_real_directory (path : string) : bool =
+  match file_kind path with Some Unix.S_DIR -> true | _ -> false
+
+let ensure_not_symlink (path : string) : unit =
+  match file_kind path with
+  | Some Unix.S_LNK -> invalid_arg ("symlink output path: " ^ path)
+  | _ -> ()
+
 let rec mkdir_p (dir : string) : unit =
-  if dir = "" || dir = "." || dir = "/" || Sys.file_exists dir then ()
-  else begin
-    mkdir_p (Filename.dirname dir);
-    try Unix.mkdir dir 0o755 with Unix.Unix_error (Unix.EEXIST, _, _) -> ()
-  end
+  if dir = "" || dir = "." || dir = "/" then ()
+  else
+    match file_kind dir with
+    | Some Unix.S_DIR -> ()
+    | Some _ -> invalid_arg ("output parent is not a directory: " ^ dir)
+    | None ->
+        mkdir_p (Filename.dirname dir);
+        (try Unix.mkdir dir 0o755
+         with Unix.Unix_error (Unix.EEXIST, _, _) ->
+           if not (is_real_directory dir) then
+             invalid_arg ("output parent is not a directory: " ^ dir))
 
 let write_all_bytes (path : string) (b : bytes) : unit =
   let dir = Filename.dirname path in
-  if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
+  if dir <> "" && not (is_real_directory dir) then mkdir_p dir;
+  ensure_not_symlink path;
   Io.write_file path b
 
 let copy_through (src : string) (dst : string) : unit =
   let dir = Filename.dirname dst in
-  if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
+  if dir <> "" && not (is_real_directory dir) then mkdir_p dir;
+  ensure_not_symlink dst;
   Io.write_file dst (Io.read_file src)
 
 let rename_by_kind (rel_path : string) (kind : string) : string =
@@ -106,11 +127,17 @@ let normalize (path : string) : string =
 (** Resolve [rel] under [out_dir]; None if it escapes (absolute / traversal). *)
 let safe_join (out_dir : string) (rel : string) : string option =
   let root = normalize out_dir in
-  match try Some (normalize (path_combine root rel)) with _ -> None with
+  let rel = String.map (fun c -> if c = '\\' then '/' else c) rel in
+  if
+    (String.length rel > 0 && rel.[0] = '/')
+    || is_drive_abs rel
+  then None
+  else match try Some (normalize (path_combine root rel)) with _ -> None with
   | None -> None
   | Some full ->
       let root_sep =
-        if String.length root > 0 && root.[String.length root - 1] = '/' then
+        if root = "/" then root
+        else if String.length root > 0 && root.[String.length root - 1] = '/' then
           root
         else root ^ "/"
       in
@@ -147,12 +174,12 @@ let copy_tree ~(skip : string) (src : string) (dst : string) : unit =
             if normalize (to_local child_abs) = skip then ()
               (* don't recurse into out_dir *)
             else
-              match Sys.is_directory child_abs with
-              | true -> go child_rel
-              | false -> (
-                  try copy_through child_abs (Filename.concat dst child_rel)
-                  with _ -> ())
-              | exception _ -> ())
+               match file_kind child_abs with
+               | Some Unix.S_DIR -> go child_rel
+               | Some Unix.S_REG -> (
+                   try copy_through child_abs (Filename.concat dst child_rel)
+                   with _ -> ())
+               | Some _ | None -> ())
           names
   in
   go ""
@@ -179,10 +206,10 @@ let strip_encryption_flags (cfg : config) : unit =
         Array.iter
           (fun name ->
             let p = Filename.concat dir name in
-            match Sys.is_directory p with
-            | true -> go p
-            | false ->
-                if String.lowercase_ascii name = "system.json" then begin
+             match file_kind p with
+             | Some Unix.S_DIR -> go p
+             | Some Unix.S_REG ->
+                 if String.lowercase_ascii name = "system.json" then begin
                   match Io.read_file p with
                   | exception _ -> ()
                   | body -> (
@@ -190,7 +217,7 @@ let strip_encryption_flags (cfg : config) : unit =
                       if changed && not cfg.dry_run then
                         try Io.write_file p patched with _ -> ())
                 end
-            | exception _ -> ())
+             | Some _ | None -> ())
           names
   in
   go cfg.out_dir
@@ -211,7 +238,23 @@ let vxace_err_str = function
 (* ---- VX Ace real extraction ------------------------------------------ *)
 let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
     (d_abs : string) (cfg : config) (summary : Types.run_summary ref) : unit =
-  match Vxace.parse archive_bytes with
+  let seed_error =
+    match cfg.vxace_master_key with
+    | Some expected when Bytes.length archive_bytes >= 12 ->
+        let actual = Vxace_key.derive_master_key archive_bytes 8 in
+        if actual = expected then None
+        else
+          Some
+            (Printf.sprintf
+               "VX Ace seed mismatch (expected master=0x%08X, archive=0x%08X)"
+               expected actual)
+    | _ -> None
+  in
+  match seed_error with
+  | Some msg ->
+      summary := Types.tally (Types.Failed (d_rel, msg)) !summary;
+      cfg.on_event (Log.Failed (d_abs, msg))
+  | None -> match Vxace.parse archive_bytes with
   | Error e ->
       let msg = vxace_err_str e in
       summary := Types.tally (Types.Failed (d_rel, msg)) !summary;
@@ -235,8 +278,9 @@ let extract_vxace_archive (archive_bytes : bytes) (d_rel : string)
             | Some output_path ->
                 if not cfg.dry_run then begin
                   let dir = Filename.dirname output_path in
-                  if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
-                  Io.write_file output_path plain
+                   if dir <> "" && not (is_real_directory dir) then mkdir_p dir;
+                   ensure_not_symlink output_path;
+                   Io.write_file output_path plain
                 end;
                 summary :=
                   Types.tally
@@ -290,8 +334,9 @@ let extract_rgssad_archive (archive_bytes : bytes) (d_rel : string)
             | Some output_path ->
                 if not cfg.dry_run then begin
                   let dir = Filename.dirname output_path in
-                  if dir <> "" && not (Sys.file_exists dir) then mkdir_p dir;
-                  Io.write_file output_path plain
+                   if dir <> "" && not (is_real_directory dir) then mkdir_p dir;
+                   ensure_not_symlink output_path;
+                   Io.write_file output_path plain
                 end;
                 summary :=
                   Types.tally
@@ -314,6 +359,8 @@ let extract_rgssad_archive (archive_bytes : bytes) (d_rel : string)
         entries
 
 let run (cfg : config) : Types.run_summary =
+  if normalize (to_local cfg.game_dir) = normalize (to_local cfg.out_dir) then
+    invalid_arg "game_dir and out_dir must be different";
   let summary = ref (Types.run_summary_empty (Unix.gettimeofday ())) in
   cfg.on_event (Log.KeyFound cfg.key_source);
   let detected = Walk.walk cfg.game_dir in
@@ -336,9 +383,16 @@ let run (cfg : config) : Types.run_summary =
       let out_rel = d.Types.rel_path in
       let out_abs = path_combine cfg.out_dir out_rel in
       match d.Types.format with
-      | Types.MV -> (
-          match Dispatch.decrypt_single cfg.key d.Types.abs_path with
-          | Ok (bytes, kind, was) ->
+       | Types.MV ->
+           if not cfg.key_available then begin
+             let msg = "no MV/MZ encryption key available" in
+             summary :=
+               Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
+             cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+           end
+           else begin
+             match Dispatch.decrypt_single cfg.key d.Types.abs_path with
+           | Ok (bytes, kind, was) ->
               if was then begin
                 let real_kind_out = rename_by_kind out_rel kind in
                 let real_out_abs = path_combine cfg.out_dir real_kind_out in
@@ -383,14 +437,22 @@ let run (cfg : config) : Types.run_summary =
                   Types.tally (Types.PassedThrough (out_rel, Types.MV)) !summary;
                 cfg.on_event (Log.PassThrough d.Types.abs_path)
               end
-          | Error msg ->
+           | Error msg ->
               let broken = out_abs ^ ".broken" in
               if not cfg.dry_run then write_all_bytes broken (Bytes.create 0);
               summary :=
                 Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
-              cfg.on_event (Log.Failed (d.Types.abs_path, msg)))
-      | Types.MZ -> (
-          match Dispatch.decrypt_archive cfg.key d.Types.abs_path with
+                cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+           end
+       | Types.MZ ->
+           if not cfg.key_available then begin
+             let msg = "no MV/MZ encryption key available" in
+             summary :=
+               Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
+             cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+           end
+           else begin
+             match Dispatch.decrypt_archive cfg.key d.Types.abs_path with
           | Ok entries ->
               let dir_part = Filename.dirname out_rel in
               let safe_dir =
@@ -426,10 +488,11 @@ let run (cfg : config) : Types.run_summary =
                       cfg.on_event
                         (Log.Decrypt (d.Types.abs_path, entry_out_abs, "MZ")))
                 entries
-          | Error msg ->
-              summary :=
-                Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
-              cfg.on_event (Log.Failed (d.Types.abs_path, msg)))
+           | Error msg ->
+               summary :=
+                 Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
+                cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+           end
       | (Types.XP | Types.VX) as fmt -> (
           match Io.read_file d.Types.abs_path with
           | exception e ->
@@ -454,12 +517,19 @@ let run (cfg : config) : Types.run_summary =
              summary :=
                Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
              cfg.on_event (Log.Failed (d.Types.abs_path, msg)));
-          if (not !io_failed) && Bytes.length !archive_bytes <> 0 then
-            extract_vxace_archive !archive_bytes d.Types.rel_path
-              d.Types.abs_path cfg summary)
+           if not !io_failed then
+             if Bytes.length !archive_bytes = 0 then begin
+               let msg = "Truncated" in
+               summary :=
+                 Types.tally (Types.Failed (d.Types.rel_path, msg)) !summary;
+               cfg.on_event (Log.Failed (d.Types.abs_path, msg))
+             end
+             else
+               extract_vxace_archive !archive_bytes d.Types.rel_path
+                 d.Types.abs_path cfg summary)
     detected;
   (* Mirror mode: with the tree cloned and assets decrypted in place, clear the
      engine's "assets are encrypted" flags so the copy boots as-is. *)
-  if cfg.mirror then strip_encryption_flags cfg;
+   if cfg.mirror && (!summary).Types.failed_count = 0 then strip_encryption_flags cfg;
   summary := { !summary with Types.finished_at = Unix.gettimeofday () };
   !summary

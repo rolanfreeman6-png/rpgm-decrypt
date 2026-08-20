@@ -13,7 +13,7 @@ let run_summary_to_json (s : Types.run_summary) : string =
   Printf.sprintf
     "{\"scanned\":%d,\"decrypted\":%d,\"passthrough\":%d,\"skipped\":%d,\"failed\":%d,\"key_source\":\"%s\",\"per_format\":{%s}}"
     s.Types.inputs_scanned s.Types.decrypted_count s.Types.passed_through_count
-    s.Types.skipped_count s.Types.failed_count s.Types.key_source per
+    s.Types.skipped_count s.Types.failed_count (Log.escape s.Types.key_source) per
 
 let run_summary_human (s : Types.run_summary) : string =
   let per =
@@ -47,7 +47,7 @@ let usage () =
      Options:\n\
     \  --password <hex>             32-char hex key for MV/MZ\n\
     \  --password-file <path>       newline-separated candidate keys\n\
-    \  --vxace-seed <8hex>          RPG Maker VX Ace master-seed (8 hex chars)\n\
+     \  --vxace-seed <8hex>          verify embedded VX Ace seed (8 hex chars)\n\
     \  --assets-only                write only decrypted assets, not a full copy\n\
     \  --log-format human|json      stderr log format (default human)\n\
     \  --report-format human|json   final stdout report (default human)\n\
@@ -129,7 +129,7 @@ let () =
   let pos = List.rev !pos in
 
   if !version then begin
-    Printf.printf "rpgm-decrypt 0.3.16\n";
+    Printf.printf "rpgm-decrypt 0.3.17\n";
     Printf.printf "  engine support: XP / VX / VX Ace / MV / MZ\n";
     Printf.printf "  built on OCaml %s\n" Sys.ocaml_version;
     exit !err_num
@@ -150,16 +150,19 @@ let () =
   let out_dir =
     if List.length pos >= 2 then List.nth pos 1
     else begin
-      let parent =
-        match Filename.dirname game_dir with "" -> game_dir | p -> p
-      in
       let trimmed =
         let g = game_dir in
         let len = ref (String.length g) in
-        while !len > 0 && g.[!len - 1] = '/' do
+        while
+          !len > 0
+          && (g.[!len - 1] = '/' || g.[!len - 1] = '\\')
+        do
           decr len
         done;
         String.sub g 0 !len
+      in
+      let parent =
+        match Filename.dirname trimmed with "" -> trimmed | p -> p
       in
       let stem =
         match Filename.basename trimmed with "" | "." | "/" -> "game" | b -> b
@@ -168,8 +171,35 @@ let () =
     end
   in
 
-  if not (Sys.file_exists game_dir && Sys.is_directory game_dir) then begin
+  if
+    not
+      (Sys.file_exists game_dir
+      && (try Sys.is_directory game_dir with _ -> false))
+  then begin
     Printf.eprintf "error: game_dir not found: %s\n" game_dir;
+    exit 3
+  end;
+
+  if List.length pos > 2 then begin
+    Printf.eprintf "error: expected at most <game_dir> and <out_dir>\n";
+    exit 2
+  end;
+
+  let supplied_options =
+    (if Option.is_some !password then 1 else 0)
+    + (if Option.is_some !password_file then 1 else 0)
+    + (if Option.is_some !vxace_seed then 1 else 0)
+  in
+  if supplied_options > 1 then begin
+    Printf.eprintf
+      "error: --password, --password-file and --vxace-seed are mutually exclusive\n";
+    exit 2
+  end;
+
+  if Sys.file_exists out_dir
+     && not (try Sys.is_directory out_dir with _ -> false)
+  then begin
+    Printf.eprintf "error: out_dir is not a directory: %s\n" out_dir;
     exit 3
   end;
 
@@ -187,10 +217,15 @@ let () =
           exit 3
         end;
         let words =
-          Bytes.to_string (Io.read_file pf)
-          |> String.split_on_char '\n' |> List.map String.trim
-          |> List.filter (fun s -> String.length s > 0)
-          |> Array.of_list
+          try
+            Bytes.to_string (Io.read_file pf)
+            |> String.split_on_char '\n' |> List.map String.trim
+            |> List.filter (fun s -> String.length s > 0)
+            |> Array.of_list
+          with e ->
+            Printf.eprintf "error: cannot read --password-file: %s\n"
+              (Printexc.to_string e);
+            exit 3
         in
         Key_discovery.discover_with_wordlist game_dir words
     | None, None, Some seed_hex ->
@@ -207,23 +242,16 @@ let () =
               (Printexc.to_string e);
             exit 2
         in
-        let master_key =
+        let seed =
           Vxace_key.u32
             (Char.code (Bytes.get seed_bytes 0)
             lor (Char.code (Bytes.get seed_bytes 1) lsl 8)
             lor (Char.code (Bytes.get seed_bytes 2) lsl 16)
             lor (Char.code (Bytes.get seed_bytes 3) lsl 24))
         in
-        let derived = Bytes.make 16 '\000' in
-        let rotating = ref (Vxace_key.u32 ((master_key * 9) + 3)) in
-        for j = 0 to 15 do
-          Bytes.set derived j (Char.chr (!rotating land 0xFF));
-          rotating := Vxace_key.u32 ((!rotating * 7) + 3)
-        done;
-        Key_discovery.Found
-          ( derived,
-            Printf.sprintf "--vxace-seed derived from master=0x%08X" master_key
-          )
+        Key_discovery.NotFound
+          (Printf.sprintf
+             "--vxace-seed supplied (seed=0x%08X); no MV/MZ key supplied" seed)
     | None, None, None -> Key_discovery.discover game_dir
   in
 
@@ -246,12 +274,13 @@ let () =
       detected
   in
 
-  let key_bytes, src =
+  let key_available, key_bytes, src =
     match key_result with
-    | Key_discovery.Found (k, s) -> (k, s)
+    | Key_discovery.Found (k, s) -> (true, k, s)
     | Key_discovery.NotFound why ->
         if has_rgss then
-          ( Bytes.make 16 '\000',
+          ( false,
+            Bytes.make 16 '\000',
             if needs_key then
               Printf.sprintf
                 "RGSS built-in key (no MV/MZ key: %s — those assets will fail)"
@@ -266,16 +295,34 @@ let () =
         end
   in
   let summary =
-    Report.run
-      {
-        Report.game_dir;
-        out_dir;
-        key = key_bytes;
-        key_source = src;
-        dry_run = !dry_run;
-        mirror = !mirror;
-        on_event = (if !quiet then fun _ -> () else Log.emit !log_fmt);
-      }
+    try
+      Report.run
+        {
+           Report.game_dir;
+           out_dir;
+           key = key_bytes;
+           key_available;
+           vxace_master_key =
+             (match !vxace_seed with
+             | None -> None
+             | Some seed_hex ->
+                 let seed_bytes = bytes_of_hex seed_hex in
+                 let seed =
+                   Vxace_key.u32
+                     (Char.code (Bytes.get seed_bytes 0)
+                     lor (Char.code (Bytes.get seed_bytes 1) lsl 8)
+                     lor (Char.code (Bytes.get seed_bytes 2) lsl 16)
+                     lor (Char.code (Bytes.get seed_bytes 3) lsl 24))
+                 in
+                 Some (Vxace_key.u32 ((seed * 9) + 3)));
+           key_source = src;
+           dry_run = !dry_run;
+           mirror = !mirror;
+           on_event = (if !quiet then fun _ -> () else Log.emit !log_fmt);
+         }
+    with e ->
+      Printf.eprintf "error: extraction failed: %s\n" (Printexc.to_string e);
+      exit 3
   in
   Crypto.zero_fill key_bytes;
   (match !rep_fmt with

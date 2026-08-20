@@ -11,8 +11,8 @@ in-memory copy). A mutation is **killed** if either suite exits non-zero.
 - Driver: a small `sed`-based shell script (line-scoped mutation → rebuild →
   oracle → restore-from-backup; kept out of the repo, reproducible from the
   mutation table below).
-- Oracle: `dune exec test/test.exe` (behavioural checks — 72 at first-wave
-  time, **92** after the two fixes below grew the suite) **and**
+- Oracle: `dune exec test/test.exe` (historical behavioural checks — 72 at
+  first-wave time, **92** after the two fixes below grew the suite) **and**
   `dune exec test/prop/prop.exe` (QCheck2, 12 properties, seed 42).
 - Each mutation is a single literal source edit; the driver verifies the
   find-string is present (NOT-APPLIED otherwise) and restores the original
@@ -88,6 +88,10 @@ equivalent-mutant analysis. It demonstrates the suite catches representative
 operator/bounds/logic mutants on the verified core, and it surfaced (and
 closed) two genuine coverage gaps. The I/O modules (`io`, `walk`, `mz`,
 `report.run`, `key_discovery`) are not mutated here — they are covered by the
-92 behavioural checks + 12 QCheck properties (see the README "Formal
+the historical 92 behavioural checks + 12 QCheck properties (see the README "Formal
 verification & guarantees" section); the deductive proofs target the pure
 core, not I/O.
+
+This report is historical: the current suite has 103 behavioural checks and
+includes parser, key-discovery, and missing-key regressions added after this
+campaign. The 7/7 score is not a mutation result for those newer changes.
