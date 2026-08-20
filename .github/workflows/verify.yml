@@ -27,7 +27,7 @@ jobs:
       - name: Setup OCaml with native MinGW toolchain
         uses: ocaml/setup-ocaml@v3
         with:
-          ocaml-compiler: "5.5.0"
+          ocaml-compiler: "5.3.0"
 
       - name: Install OCaml dependencies
         run: opam install -y dune camlzip yojson re qcheck-core gospel.0.3.1
