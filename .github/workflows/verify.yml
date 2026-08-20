@@ -48,11 +48,15 @@ jobs:
           if (Test-Path -LiteralPath $source) { Remove-Item -LiteralPath $source -Recurse -Force }
           opam source gospel.0.3.1 --dir=$source --no-switch
           if ($LASTEXITCODE -ne 0) { throw "opam source failed" }
-          Copy-Item .github/workflows/gospel-windows.patch (Join-Path $source "gospel-windows.patch")
-          Push-Location $source
-          git apply gospel-windows.patch
-          if ($LASTEXITCODE -ne 0) { throw "Gospel Windows patch no longer applies" }
-          Pop-Location
+          $file = Join-Path $source "src\tmodule.ml"
+          $text = [System.IO.File]::ReadAllText($file)
+          $oldWrite = "let oc = open_out filename in"
+          $oldRead = "let ic = open_in filename in"
+          if ($text.IndexOf($oldWrite) -lt 0 -or $text.IndexOf($oldWrite) -ne $text.LastIndexOf($oldWrite)) { throw "Unexpected Gospel write channel source" }
+          if ($text.IndexOf($oldRead) -lt 0 -or $text.IndexOf($oldRead) -ne $text.LastIndexOf($oldRead)) { throw "Unexpected Gospel read channel source" }
+          $text = $text.Replace($oldWrite, "let oc = open_out_bin filename in")
+          $text = $text.Replace($oldRead, "let ic = open_in_bin filename in")
+          [System.IO.File]::WriteAllText($file, $text, [System.Text.UTF8Encoding]::new($false))
           opam pin add gospel $source --yes
           opam install -y gospel.0.3.1
 
