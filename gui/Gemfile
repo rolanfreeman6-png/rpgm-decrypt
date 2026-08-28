@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+
+# GUI runtime dependencies for rpgm-decrypt-gui (Windows build only).
+gem 'gtk3'
+gem 'ocra'

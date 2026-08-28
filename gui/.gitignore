@@ -1,0 +1,10 @@
+# build artefacts
+rpgm-decrypt-gui.exe
+rpgm-decrypt-gui-windows-x64.zip
+gtk_runtime/
+dist/
+decrypted_cache/
+*.gem
+# local build/debug logs
+_*.txt
+build_check.txt

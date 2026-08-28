@@ -140,6 +140,88 @@ jobs:
           }
           gh release upload $tag rpgm-decrypt-windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
 
+  # ---- Windows GUI (Ruby + GTK3 hybrid front-end) ---------------------------
+  # Builds the rpgm-decrypt.exe decrypter first, then bundles the Ruby/GTK3 GUI
+  # with OCRA (rpgm-decrypt-gui.exe + GTK3 runtime) and uploads it as a separate
+  # release asset. The CLI assets above are left untouched.
+  gui-windows:
+    name: publish (gui-windows-x64, zip)
+    runs-on: windows-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup OCaml (opam + mingw64)
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.3.0"
+
+      - name: Build the OCaml decrypter (.exe + zlib1.dll)
+        shell: pwsh
+        working-directory: ocaml
+        run: |
+          opam install -y dune camlzip yojson re
+          opam exec -- dune build --profile release bin/main.exe
+          # dist-win/ is gitignored, so it does not exist on a fresh checkout.
+          New-Item -ItemType Directory -Force ../ocaml/dist-win | Out-Null
+          Copy-Item _build/default/bin/main.exe ../ocaml/dist-win/rpgm-decrypt.exe -Force
+          $root   = opam var root
+          $prefix = opam var prefix
+          $dll = Get-ChildItem -Path $root,$prefix -Recurse -Filter zlib1.dll -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $dll) { throw "zlib1.dll not found under opam root=$root or prefix=$prefix" }
+          Copy-Item $dll.FullName ../ocaml/dist-win/zlib1.dll -Force
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          working-directory: gui
+
+      - name: Install GTK3 runtime (MSYS2)
+        shell: bash
+        run: |
+          C:\msys64\usr\bin\bash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gtk3'
+          echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
+
+      - name: Install GUI gems
+        shell: pwsh
+        working-directory: gui
+        run: |
+          gem install gtk3 ocra
+
+      - name: Build + bundle the GUI zip
+        shell: pwsh
+        working-directory: gui
+        run: |
+          ./build_windows.ps1
+
+      - name: Smoke-test the GUI bundle
+        shell: pwsh
+        working-directory: gui
+        run: |
+          Expand-Archive rpgm-decrypt-gui-windows-x64.zip -DestinationPath gui-smoke -Force
+          # The bundled exe extracts GTK on first run; just confirm it starts and exits.
+          $p = Start-Process -FilePath .\gui-smoke\rpgm-decrypt-gui.exe -PassThru
+          Start-Sleep -Seconds 8
+          if (-not $p.HasExited) { Stop-Process -Id $p.Id }
+
+      - name: Append the GUI zip to the GitHub Release
+        working-directory: gui
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if (-not (gh release view $tag --repo $env:GITHUB_REPOSITORY)) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --target main `
+              --title $tag `
+              --notes "rpgm-decrypt $tag — Windows x86-64 GUI (Ruby + GTK3)."
+          }
+          gh release upload $tag rpgm-decrypt-gui-windows-x64.zip --repo $env:GITHUB_REPOSITORY --clobber
+
   # ---- macOS (Apple Silicon, native) -----------------------------------------
   macos-arm64:
     name: publish (macos-arm64)
