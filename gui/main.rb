@@ -17,7 +17,6 @@ require 'open3'
 require 'fileutils'
 require 'find'
 require 'pathname'
-require 'shellwords'
 require_relative 'core'
 require_relative 'star_gate'
 
@@ -330,7 +329,9 @@ class RpgmGui
 
     @filter = Gtk::Entry.new
     @filter.placeholder_text = 'filter by name (substring)...'
-    @filter.signal_connect('changed') { refresh_list }
+    # Filter keystrokes only re-populate the view; the folder rescan is
+    # triggered by "Refresh file list" / picking a game folder.
+    @filter.signal_connect('changed') { populate_tree(@filter.text.to_s) }
 
     # file list
     @store = Gtk::ListStore.new(String, String, String) # rel, size, status
@@ -402,6 +403,27 @@ class RpgmGui
     end
   end
 
+  # Command line for the log, with secret key material masked. Paths given via
+  # --password-file are kept visible — they are not secrets. Plain join (not
+  # shelljoin): the subprocess is spawned from the argument array, and
+  # shelljoin would mangle Windows backslash paths; this line is for humans.
+  def self.redact_join(args)
+    masked = []
+    hide_next = false
+    args.each do |a|
+      if hide_next
+        masked << 'REDACTED'
+        hide_next = false
+      elsif %w[--password --vxace-seed].include?(a)
+        masked << a
+        hide_next = true
+      else
+        masked << a
+      end
+    end
+    masked.join(' ')
+  end
+
   # ---- logging / progress (always on the GTK main thread) ------------------
   def log(text)
     GLib::Idle.add do
@@ -429,6 +451,11 @@ class RpgmGui
     end
     if out.nil? || out.empty?
       log('[!] Select the output folder.')
+      return
+    end
+    if File.expand_path(out) == File.expand_path(game)
+      log('[!] Output folder must differ from the source game folder ' \
+          '(the tool mirrors the tree and would overwrite the originals).')
       return
     end
     if File.directory?(out) && !Dir.empty?(out) && !confirm_nonempty_output(out)
@@ -521,22 +548,28 @@ class RpgmGui
           next
         end
 
-        cache_dir = File.join(EXE_DIR, 'decrypted_cache')
-        dest = File.join(cache_dir, out_rel.tr('/', '\\'))
-        FileUtils.mkdir_p(File.dirname(dest))
-        FileUtils.cp(src, dest)
-        @point_cache = {
-          decrypted: dest,
-          original: File.join(game, @selected_rel.tr('/', '\\')),
-          rel: @selected_rel
-        }
-        FileUtils.rm_rf(temp_out)
-        GLib::Idle.add do
-          @return_btn.sensitive = true
-          false
+        begin
+          cache_dir = File.join(EXE_DIR, 'decrypted_cache')
+          dest = File.join(cache_dir, out_rel.tr('/', '\\'))
+          FileUtils.mkdir_p(File.dirname(dest))
+          FileUtils.cp(src, dest)
+          @point_cache = {
+            decrypted: dest,
+            original: File.join(game, @selected_rel.tr('/', '\\')),
+            rel: @selected_rel
+          }
+          GLib::Idle.add do
+            @return_btn.sensitive = true
+            false
+          end
+          log("Decrypted and saved: #{dest}")
+          set_status('one file decrypted — you can restore it in place')
+        rescue StandardError => e
+          log("[!] Could not cache the decrypted file: #{e.class}: #{e.message}")
+          set_status('failed to cache the decrypted file')
+        ensure
+          FileUtils.rm_rf(temp_out)
         end
-        log("Decrypted and saved: #{dest}")
-        set_status('one file decrypted — you can restore it in place')
       else
         FileUtils.rm_rf(temp_out)
         if @cancel_requested
@@ -562,16 +595,21 @@ class RpgmGui
     game = File.dirname(orig)
     target = File.join(game, out_rel.tr('/', '\\'))
 
-    backup = orig + '.bak'
-    unless File.exist?(backup)
-      FileUtils.cp(orig, backup)
-      log("Original backed up: #{backup}")
+    begin
+      backup = orig + '.bak'
+      unless File.exist?(backup)
+        FileUtils.cp(orig, backup)
+        log("Original backed up: #{backup}")
+      end
+      FileUtils.mkdir_p(File.dirname(target))
+      FileUtils.cp(dec, target)
+      FileUtils.rm_f(orig) if out_rel.tr('/', '\\') != rel.tr('/', '\\')
+      log("Restored (decrypted file) → #{target}")
+      set_status('file replaced with the decrypted one; original kept as .bak')
+    rescue StandardError => e
+      log("[!] Restore failed: #{e.class}: #{e.message}")
+      set_status('restore failed')
     end
-    FileUtils.mkdir_p(File.dirname(target))
-    FileUtils.cp(dec, target)
-    FileUtils.rm_f(orig) if out_rel.tr('/', '\\') != rel.tr('/', '\\')
-    log("Restored (decrypted file) → #{target}")
-    set_status('file replaced with the decrypted one; original kept as .bak')
   end
 
   def open_path(path)
@@ -641,7 +679,7 @@ class RpgmGui
     @stop_btn.sensitive = true
     @state = { total: 0, done: 0, summary: nil }
     log("== #{label}")
-    log(args.shelljoin)
+    log(RpgmGui.redact_join(args))
 
     Thread.new do
       result = RpgmDecryptCore.run_decrypt(args, cancel: -> { @cancel_requested }) do |ev|
