@@ -177,14 +177,13 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.2"
+          ruby-version: "3.3"
           working-directory: gui
 
       - name: Install GTK3 runtime (MSYS2)
         shell: bash
         run: |
           C:\msys64\usr\bin\bash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gtk3'
-          echo "C:/msys64/mingw64/bin" >> "$GITHUB_PATH"
 
       - name: Install GUI gems
         shell: pwsh
@@ -196,15 +195,19 @@ jobs:
         shell: pwsh
         working-directory: gui
         run: |
-          ./build_windows.ps1
+          # GTK was installed into mingw64 (NOT the script's ucrt64 default):
+          # staging from ucrt64 would bundle a runtime without GTK DLLs and
+          # the packed exe would die at require 'gtk3'.
+          ./build_windows.ps1 -GtkPrefix C:\msys64\mingw64
 
       - name: Smoke-test the GUI bundle
         shell: pwsh
         working-directory: gui
         run: |
           Expand-Archive rpgm-decrypt-gui-windows-x64.zip -DestinationPath gui-smoke -Force
+          # The zip unpacks to a single rpgm-decrypt-gui\ folder.
           # The bundled exe extracts GTK on first run; just confirm it starts and exits.
-          $p = Start-Process -FilePath .\gui-smoke\rpgm-decrypt-gui.exe -PassThru
+          $p = Start-Process -FilePath .\gui-smoke\rpgm-decrypt-gui\rpgm-decrypt-gui.exe -PassThru
           Start-Sleep -Seconds 8
           if (-not $p.HasExited) { Stop-Process -Id $p.Id }
 

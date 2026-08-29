@@ -20,6 +20,10 @@ require 'pathname'
 require_relative 'core'
 require_relative 'star_gate'
 
+# GUI has its own version line, independent of the OCaml core's semver (the
+# core binary ships alongside and reports its own --version).
+GUI_VERSION = '1.0.0'
+
 # --- locate the directory this executable lives in -------------------------
 EXE_DIR = File.dirname(ENV['OCRA_EXECUTABLE'] || File.expand_path($PROGRAM_NAME))
 
@@ -234,7 +238,7 @@ class RpgmGui
     header_box.pack_start(header, expand: false, fill: false, padding: 0)
     root.pack_start(header_box, expand: false, fill: false, padding: 0)
 
-    subtitle = Gtk::Label.new('front-end for rpgm-decrypt.exe (OCaml)')
+    subtitle = Gtk::Label.new("front-end for rpgm-decrypt.exe (OCaml) — GUI #{GUI_VERSION}")
     subtitle.halign = :center
     root.pack_start(subtitle, expand: false, fill: false, padding: 0)
 

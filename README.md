@@ -137,16 +137,26 @@ native GTK3 window. It is a self-contained hybrid: the OCaml binary does the
 decrypting, the Ruby GUI just drives it and shows live progress.
 
 **Download** `rpgm-decrypt-gui-windows-x64.zip` from the
-[Releases](../../releases) page, extract the whole folder, and run
-`rpgm-decrypt-gui.exe`. (It bundles `rpgm-decrypt.exe`, `zlib1.dll` and the GTK3
-runtime — keep them together.) No Ruby install needed on your machine.
+[Releases](../../releases) page, extract it (the archive unpacks into a single
+`rpgm-decrypt-gui\` folder — put it anywhere you can write, like Desktop or
+Documents), and double-click `rpgm-decrypt-gui.exe`. Everything ships inside:
+`rpgm-decrypt.exe`, `zlib1.dll`, the GTK3 runtime and a `README.txt` quick
+start. No Ruby, no GTK, no other installs needed.
+
+The GUI is versioned on its own line (independent of the core): the current
+release is **GUI 1.0.0**, and the version is shown under the window title.
+
+> [!TIP]
+> **Windows SmartScreen** may show "Windows protected your PC" because the exe
+> is unsigned. Click **More info → Run anyway**. This is normal for open-source
+> builds without a paid code-signing certificate.
 
 The GUI has two modes:
 
 | Mode | What it does |
 |---|---|
-| **Вся игра** | Decrypt a whole game folder (full mirror copy, or `--assets-only`). Same result as the CLI. Live progress bar + log. |
-| **Один файл** | List the game's files, pick **one encrypted asset** (`.png_` / `.rpgmvp` / `.ogg_` / …), decrypt just that file, and **return it to its place** — replace the encrypted original with the open one (the original is saved as `<file>.bak` first). Great for poking at a single sprite/audio without decrypting the whole game. |
+| **Whole game** | Decrypt a whole game folder (full mirror copy, or Assets-only). Same result as the CLI. Live progress bar + log. |
+| **Single file** | List the game's files, pick **one encrypted asset** (`.png_` / `.rpgmvp` / `.ogg_` / …), decrypt just that file, and **restore it in place** — replace the encrypted original with the open one (the original is saved as `<file>.bak` first). Great for poking at a single sprite/audio without decrypting the whole game. |
 
 The window also exposes the core's `--dry-run` mode (scan and report without
 writing anything), a **Stop** button that terminates a running job,
@@ -157,10 +167,10 @@ to dump the progress log to a file.
 > [!NOTE]
 > **Point-decrypt is a convenience, not a re-encrypter.** It decrypts the game
 > into a temporary folder, grabs the one file you asked for, then deletes the
-> rest — so the OCaml core is never modified. "Вернуть на место" puts the
+> rest — so the OCaml core is never modified. "Restore in place" puts the
 > *open* (decrypted) file back; if you want the game re-encrypted you'd use the
 > CLI normally. Archives (`.rgssad` / `.rgss2a` / `.rgss3a`) are not supported in
-> point mode — use **Вся игра** for those.
+> point mode — use **Whole game** for those.
 
 > [!TIP]
 > The GUI and the CLI ship as **separate** assets. Keep using the CLI (or
@@ -409,7 +419,7 @@ ocaml/                  OCaml flagship — single native binary
   coverage/               bisect_ppx coverage report (HTML + Cobertura XML)
   MUTATION_REPORT.md      mutation testing campaign (7/7 killed)
 gui/                   Windows GUI (Ruby + GTK3) — hybrid front-end over the OCaml binary
-  main.rb                GTK3 window: "Вся игра" + point-decrypt "Один файл"
+  main.rb                GTK3 window: "Whole game" + point-decrypt "Single file"
   build_windows.ps1      OCRA bundle → rpgm-decrypt-gui-windows-x64.zip
 .gitlab-ci.yml          test + fuzz + verification farm
 .github/workflows/      non-release verification + tag-triggered releases

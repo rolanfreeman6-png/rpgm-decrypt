@@ -156,8 +156,59 @@ Get-ChildItem -Path $runtime | ForEach-Object { Copy-Item $_.FullName $dist -Rec
 Copy-Item $OcamlExe $dist -Force
 Copy-Item $ZlibDll $dist -Force
 
+# --- end-user quick start (shipped inside the zip) --------------------------
+$readme = @'
+rpgm-decrypt GUI — quick start
+==============================
+
+1. Extract the WHOLE folder somewhere you can write (Desktop, Documents...).
+   Do not run straight from inside the zip and avoid Program Files.
+2. Double-click rpgm-decrypt-gui.exe.
+   - First launch asks you to sign in with GitHub and star the project once
+     (internet needed that one time only; afterwards it works offline).
+   - Windows SmartScreen may warn about an unknown publisher: click
+     "More info" -> "Run anyway". The app is open source and unsigned.
+3. "Whole game" tab: pick the game folder + an EMPTY output folder, press
+   Decrypt game. You get a ready-to-play decrypted copy of the game.
+   "Single file" decrypts one selected asset into decrypted_cache\.
+4. The Key row stays on "auto" for most games (the key is found
+   automatically). Manual hex key / VX Ace seed / key-list file are there
+   for unusual cases.
+
+Everything needed ships in this folder (GTK runtime included); nothing is
+installed and no other downloads are required. Logs can be saved with
+"Save log...". Original game files are never modified: output always goes
+to the folder you pick (the "Restore in place" button is the one
+exception and it makes a .bak backup first).
+'@
+$ReadmePath = Join-Path $dist 'README.txt'
+Set-Content -Path $ReadmePath -Value $readme -Encoding UTF8
+
 # --- package the zip -------------------------------------------------------
+# The zip contains ONE folder (rpgm-decrypt-gui/...), so extracting it never
+# scatters thousands of GTK runtime files across the user's directory.
+# Entries are written explicitly via ZipArchive: forward-slash names (both
+# Compress-Archive and .NET Framework's ZipFile.CreateFromDirectory emit
+# backslash names that some unzip tools flatten into weird files) + deflate.
 $zip = Join-Path $root 'rpgm-decrypt-gui-windows-x64.zip'
 if (Test-Path $zip) { Remove-Item $zip -Force }
-Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $zip -Force
+$stage = Join-Path $root '_zip_stage'
+if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+New-Item -ItemType Directory -Path (Join-Path $stage 'rpgm-decrypt-gui') | Out-Null
+Copy-Item (Join-Path $dist '*') (Join-Path $stage 'rpgm-decrypt-gui') -Recurse -Force
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$fs = [System.IO.File]::Open($zip, [System.IO.FileMode]::Create)
+$arc = New-Object System.IO.Compression.ZipArchive($fs, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+  Get-ChildItem -Path $stage -Recurse -File | ForEach-Object {
+    $rel = $_.FullName.Substring($stage.Length).TrimStart('\').Replace('\', '/')
+    [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+      $arc, $_.FullName, $rel, [System.IO.Compression.CompressionLevel]::Optimal)
+  }
+} finally {
+  $arc.Dispose()
+  $fs.Dispose()
+}
+Remove-Item $stage -Recurse -Force
 Write-Output "Created $zip"
