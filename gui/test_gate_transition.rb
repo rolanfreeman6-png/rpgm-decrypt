@@ -34,8 +34,6 @@ end
 
 Gtk.main
 
-Gtk.main
-
 fail "hand-over error: #{result[:error]}" if result[:error]
 fail 'main window did not appear after the gate closed' unless result[:main_window_seen]
 

@@ -161,15 +161,19 @@ class RpgmGui
       }
       entry:focus { border-color: #ff1f4b; box-shadow: 0 0 7px rgba(255, 31, 75, 0.6); }
 
-      /* Tabs: NO neon outline/glow — just bold scarlet text on the active tab */
-      notebook > header { background-color: transparent; }
-      notebook > header > tabs > tab {
+      /* Tab switcher (StackSwitcher = row of toggle buttons): NO neon
+         outline/glow — just bold scarlet text on the active tab */
+      stackswitcher button {
         padding: 5px 16px;
         color: #5a5a5a;
-        border: none;
-        box-shadow: none;
+        font-weight: 400;
       }
-      notebook > header > tabs > tab:checked { color: #ff1f4b; font-weight: 500; }
+      stackswitcher button:checked {
+        color: #ff1f4b;
+        font-weight: 500;
+        background-color: #fff0f3;
+        border-color: #ff1f4b;
+      }
 
       /* Progress bar: neutral trough, scarlet fill (no outline) */
       progressbar > trough { background-color: #e9ebef; border-radius: 8px; }
@@ -192,7 +196,7 @@ class RpgmGui
   def build_window
     @window = Gtk::Window.new('rpgm decrypt')
     @window.resizable = true
-    @window.set_default_size(960, 680)
+    @window.set_default_size(960, 780)
     @window.signal_connect('destroy') { Gtk.main_quit }
 
     # Scarlet-diamond window/taskbar icon (ships next to the .exe).
@@ -234,10 +238,19 @@ class RpgmGui
     subtitle.halign = :center
     root.pack_start(subtitle, expand: false, fill: false, padding: 0)
 
-    nb = Gtk::Notebook.new
-    nb.append_page(build_bulk_tab, Gtk::Label.new('Whole game'))
-    nb.append_page(build_point_tab, Gtk::Label.new('Single file'))
-    root.pack_start(nb, expand: true, fill: true, padding: 0)
+    # GtkStack (not Gtk::Notebook): with homogeneous off it sizes to the
+    # ACTIVE page only, while Gtk::Notebook reserves the tallest page's height
+    # and leaves a blank stretch inside every shorter tab.
+    stack = Gtk::Stack.new
+    stack.hhomogeneous = false
+    stack.vhomogeneous = false
+    stack.add_titled(build_bulk_tab, 'bulk', 'Whole game')
+    stack.add_titled(build_point_tab, 'point', 'Single file')
+    switcher = Gtk::StackSwitcher.new
+    switcher.set_stack(stack)
+    switcher.halign = :center
+    root.pack_start(switcher, expand: false, fill: false, padding: 0)
+    root.pack_start(stack, expand: false, fill: false, padding: 0)
 
     # shared progress + stop + status + log
     @progress = Gtk::ProgressBar.new
@@ -269,7 +282,9 @@ class RpgmGui
     sw = Gtk::ScrolledWindow.new
     sw.set_size_request(-1, 180)
     sw.add(@log_view)
-    root.pack_start(sw, expand: false, fill: false, padding: 0)
+    # The log absorbs every free vertical pixel: it grows upward as the window
+    # gets bigger (the tab above stays compact).
+    root.pack_start(sw, expand: true, fill: true, padding: 0)
 
     if OCAML_EXE.nil?
       log('[ERROR] rpgm-decrypt.exe not found next to the GUI. Put rpgm-decrypt.exe and zlib1.dll in the same folder.')
@@ -344,7 +359,7 @@ class RpgmGui
       @selected_rel = it ? it[0] : nil
     end
     list_sw = Gtk::ScrolledWindow.new
-    list_sw.set_size_request(-1, 260)
+    list_sw.set_size_request(-1, 200)
     list_sw.add(@tree)
 
     point_dec = Gtk::Button.new(label: 'Decrypt selected')
