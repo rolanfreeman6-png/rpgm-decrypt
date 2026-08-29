@@ -5,6 +5,7 @@ gtk_runtime/
 dist/
 decrypted_cache/
 *.gem
+config.json
 # local build/debug logs
 _*.txt
 build_check.txt

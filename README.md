@@ -167,6 +167,15 @@ to dump the progress log to a file.
 > `decrypt.bat`) if you just want a full decrypted copy; grab the GUI when you
 > want a window and per-file control.
 
+> [!NOTE]
+> **First launch asks you to star ★ the repository.** The GUI is free and open
+> source; on the first run it shows a one-time "support the project" screen:
+> sign in with GitHub (a 3-step device flow — the code opens in your browser,
+> no password is typed into the app), star the repository, and the GUI unlocks
+> **forever on that computer** — the activation is stored locally and works
+> offline from then on. Identity is verified against the signed-in account, so
+> starring with someone else's nickname is not possible.
+
 ---
 
 ## 🔑 How it finds the key (no flags needed)

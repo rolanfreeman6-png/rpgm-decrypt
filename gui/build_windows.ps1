@@ -68,6 +68,14 @@ if (Test-Path $etc) {
 # Import libraries (*.dll.a) are linker inputs, never runtime-loaded — drop them.
 Get-ChildItem -Path $runtime -Recurse -Filter '*.dll.a' | Remove-Item -Force
 
+# libcrypto-3-x64.dll / libssl-3-x64.dll: the GTK runtime's copies MUST NOT
+# ship — they would shadow the ones from ruby_builtin_dlls (Windows resolves
+# DLLs from the app dir first), and the MSYS2 build's compiled-in OpenSSL
+# config paths don't exist, breaking TLS for Ruby's net/http (star gate).
+foreach ($sslDll in @('libcrypto-3-x64.dll', 'libssl-3-x64.dll')) {
+  Get-ChildItem -Path $runtime -Filter $sslDll -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force
+}
+
 # --- side-by-side builtin DLLs (RubyInstaller 3.x) -------------------------
 # ruby.exe embeds a manifest that declares a dependent assembly
 # "ruby_builtin_dlls" (libgcc_s_seh-1.dll, libwinpthread-1.dll, libgmp-10.dll,
@@ -83,6 +91,15 @@ Get-ChildItem -Path $runtime -Recurse -Filter '*.dll.a' | Remove-Item -Force
 $rubyExe = (Get-Command ruby -ErrorAction SilentlyContinue).Source
 $rubyBin = if ($rubyExe) { Split-Path $rubyExe } else { 'C:\Ruby33-x64\bin' }
 $builtinDir = Join-Path $rubyBin 'ruby_builtin_dlls'
+# Bundle the CA certificate store so net/http works on machines without a
+# Ruby install (OpenSSL's compiled-in cert path only exists on dev machines).
+$rubyCert = Join-Path (Split-Path $rubyBin -Parent) 'ssl\cert.pem'
+if (Test-Path $rubyCert) {
+  Copy-Item $rubyCert (Join-Path $root 'cacert.pem') -Force
+  Write-Output "Bundled CA certs from: $rubyCert"
+} else {
+  Write-Warning "Ruby CA cert store not found at $rubyCert - HTTPS (star gate) may fail."
+}
 $ocraExtra = @()
 if (Test-Path $builtinDir) {
   Write-Output "Bundling ruby_builtin_dlls from: $builtinDir"
@@ -130,6 +147,8 @@ Copy-Item (Join-Path $root 'rpgm-decrypt-gui.exe') $dist
 # Window/taskbar icon loaded at runtime by main.rb (from EXE_DIR).
 if (Test-Path $iconPng) { Copy-Item $iconPng $dist }
 if (Test-Path $iconIco) { Copy-Item $iconIco $dist }
+# CA store used by net/http via SSL_CERT_FILE (see main.rb).
+if (Test-Path (Join-Path $root 'cacert.pem')) { Copy-Item (Join-Path $root 'cacert.pem') $dist }
 # Flatten the GTK runtime next to the .exe so EXE_DIR/PATH/GTK_PATH resolve it.
 Get-ChildItem -Path $runtime | ForEach-Object { Copy-Item $_.FullName $dist -Recurse -Force }
 # The decrypter pair goes LAST: the GTK runtime also ships its own zlib1.dll,

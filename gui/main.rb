@@ -19,6 +19,7 @@ require 'find'
 require 'pathname'
 require 'shellwords'
 require_relative 'core'
+require_relative 'star_gate'
 
 # --- locate the directory this executable lives in -------------------------
 EXE_DIR = File.dirname(ENV['OCRA_EXECUTABLE'] || File.expand_path($PROGRAM_NAME))
@@ -39,6 +40,11 @@ gp = [File.join(EXE_DIR, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders'),
       File.join(EXE_DIR, 'lib', '2.10.0', 'loaders')]
      .find { |d| File.directory?(d) }
 ENV['GDK_PIXBUF_MODULEDIR'] = gp if gp && ENV['GDK_PIXBUF_MODULEDIR'].to_s.empty?
+# CA store bundled next to the exe (see build_windows.ps1): OpenSSL's
+# compiled-in cert path only exists on dev machines, so point it at the
+# bundled store BEFORE any TLS is used (star gate / net/http).
+cert_file = File.join(EXE_DIR, 'cacert.pem')
+ENV['SSL_CERT_FILE'] = cert_file if File.exist?(cert_file)
 
 # On RubyInstaller (Ruby 3.x) the Windows loader does NOT search PATH for a
 # native extension's dependent DLLs, so the bundled GTK/GLib DLLs that ship
@@ -95,18 +101,16 @@ class RpgmGui
     @point_cache = nil # { decrypted:, original:, rel: }
     @cancel_requested = false
 
-    Gtk.init
-    apply_style
     build_window
     @window.show_all
-    Gtk.main
   end
 
   # Scarlet-neon theme over a light background. Neon (glow) is applied to the
   # accent elements — the title, buttons, focused input, active tab, progress
   # fill and the framed log/list areas — while the *inner* content widgets
   # (treeview/textview) stay glow-free so the glow no longer bleeds inside them.
-  def apply_style
+  # A class method so the star-gate window can reuse the exact same theme.
+  def self.apply_style
     css = <<~CSS
       /* Stylish, slightly emphasized UI font (kept tasteful) */
       * { font-family: "Trebuchet MS", "Segoe UI", sans-serif; }
@@ -574,7 +578,12 @@ class RpgmGui
     return unless path && File.exist?(path)
 
     target = File.directory?(path) ? path : File.dirname(path)
-    system('cmd', '/c', 'start', '', target)
+    # Fire-and-forget (see GateWindow#open_url): a blocking system() here
+    # would freeze the GTK main loop while Explorer spins up.
+    pid = Process.spawn('cmd', '/c', 'start', '', target)
+    Process.detach(pid)
+  rescue StandardError => e
+    warn "[rpgm-gui] folder open failed: #{e.class}: #{e.message}"
   end
 
   # Terminate the running decrypter (shared Stop button; both tabs route
@@ -682,6 +691,243 @@ class RpgmGui
   end
 end
 
+# ---------------------------------------------------------------------------
+# First-launch star gate window (see star_gate.rb for the network flow).
+# Port of the RenpyEx gate: sign in via the GitHub device flow, star the
+# repository, unlock — and never ask again on this machine (config.json).
+class GateWindow
+  def initialize
+    @unlocked = false
+    @quit = false
+    @token = nil
+    @browser_opened = false
+
+    @window = Gtk::Window.new('rpgm decrypt — unlock')
+    @window.resizable = false
+    @window.set_default_size(560, 440)
+    @window.window_position = :center
+    # ONE Gtk.main for the whole app (started by the bootstrap at the bottom
+    # of this file). When the gate closes unlocked, it hands over to the main
+    # window INSIDE the same loop — creating a window after Gtk.main_quit
+    # silently kills the packed exe.
+    @window.signal_connect('destroy') do
+      @quit = true
+      GLib::Idle.add do
+        if @unlocked
+          begin
+            RpgmGui.new
+          rescue StandardError => e
+            warn "[rpgm-gui] main window failed after unlock: #{e.class}: #{e.message}"
+            Gtk.main_quit
+          end
+        else
+          Gtk.main_quit
+        end
+        false
+      end
+    end
+    icon_file = [File.join(EXE_DIR, 'rpgm-decrypt.png'),
+                 File.join(EXE_DIR, 'rpgm-decrypt.ico')].find { |p| File.exist?(p) }
+    if icon_file
+      begin
+        @window.icon = GdkPixbuf::Pixbuf.new(file: icon_file)
+      rescue StandardError => e
+        warn "[rpgm-gui] gate icon load failed: #{e.class}: #{e.message}"
+      end
+    end
+
+    @content = Gtk::Box.new(:vertical, 10)
+    @content.style_context.add_class('app-frame')
+    @content.margin = 14
+    @window.add(@content)
+
+    show_intro
+    @window.show_all
+  end
+
+  def unlocked?
+    @unlocked
+  end
+
+  private
+
+  def clear
+    @content.children.each { |c| @content.remove(c) }
+  end
+
+  def pack(widget)
+    @content.pack_start(widget, expand: false, fill: false, padding: 0)
+  end
+
+  def title_label(text)
+    l = Gtk::Label.new
+    l.markup = text
+    l.style_context.add_class('app-title')
+    l.halign = :center
+    l
+  end
+
+  def note_label(text)
+    l = Gtk::Label.new(text)
+    l.halign = :center
+    l.justify = :center
+    l.wrap = true
+    l
+  end
+
+  def open_url(url)
+    # Never system() here: it runs on the GTK main thread and spawning the
+    # default browser can stall the message loop for seconds ("not
+    # responding"). Fire-and-forget instead.
+    pid = Process.spawn('cmd', '/c', 'start', '', url)
+    Process.detach(pid)
+  rescue StandardError => e
+    warn "[rpgm-gui] browser open failed: #{e.class}: #{e.message}"
+  end
+
+  # GLib has no markup_escape_text in ruby-gnome 4.x — escape Pango markup by hand.
+  def xml_escape(s)
+    s.to_s.gsub('&', '&amp;').gsub('<', '&lt;').gsub('>', '&gt;').gsub('"', '&quot;')
+  end
+
+  def show_intro
+    clear
+    pack(title_label('★ Support rpgm-decrypt ★'))
+    pack(note_label("rpgm-decrypt is free and open source.\n" \
+                    'To unlock the GUI, sign in with GitHub and star ★ the project.'))
+    pack(note_label('Just press the button — it guides you through 3 easy steps. ' \
+                    'No password is entered in this app.'))
+    btn = Gtk::Button.new(label: 'Sign in with GitHub  ★')
+    btn.signal_connect('clicked') { start_flow }
+    pack(btn)
+    @content.show_all
+  end
+
+  def start_flow
+    # No daemon threads in Ruby: the worker dies with the main thread on exit.
+    Thread.new do
+      RpgmStarGate.run_device_flow(method(:on_gate_event), stop_check: -> { @quit })
+    end
+  end
+
+  # Worker thread → main thread marshalling (same pattern as run_decrypt).
+  def on_gate_event(kind, *args)
+    return if @quit
+
+    GLib::Idle.add do
+      handle_event(kind, args) unless @quit
+      false
+    end
+  end
+
+  def handle_event(kind, args)
+    case kind
+    when :device_code then show_device(args[0], args[1])
+    when :starred
+      @unlocked = true
+      RpgmStarGate.save_unlock(EXE_DIR, args[0])
+      show_done(args[0])
+    when :not_starred
+      @login = args[0]
+      @token = args[1]
+      show_not_starred
+    when :denied then show_error(args.first)
+    when :failed then show_error(args.first)
+    end
+  rescue StandardError => e
+    # Never leave a blank window: any stage-render failure degrades to the
+    # error screen with a Retry button.
+    begin
+      show_error("#{e.class}: #{e.message}")
+    rescue StandardError
+      warn "[rpgm-gui] gate event error: #{e.class}: #{e.message}"
+    end
+  end
+
+  def show_device(user_code, verification_uri)
+    clear
+    pack(title_label('★ Support rpgm-decrypt ★'))
+
+    pack(note_label('STEP 1 of 3 — sign in to GitHub. The page should have opened ' \
+                    "in your browser; if not, open it manually:\n#{verification_uri}"))
+    open_btn = Gtk::Button.new(label: 'Open GitHub sign-in page  ⤴')
+    open_btn.signal_connect('clicked') { open_url(verification_uri) }
+    pack(open_btn)
+
+    pack(note_label('STEP 2 of 3 — copy this code, paste it on that page and press Continue:'))
+    code = Gtk::Label.new
+    code.markup = "<span size='24000' face='monospace'>#{xml_escape(user_code)}</span>"
+    code.selectable = true
+    code.halign = :center
+    pack(code)
+
+    pack(note_label('STEP 3 of 3 — waiting for authorization…'))
+    @content.show_all
+
+    unless @browser_opened
+      @browser_opened = true
+      open_url(verification_uri)
+    end
+  end
+
+  def show_not_starred
+    clear
+    pack(title_label('Almost there, ' + xml_escape(@login.to_s) + '!'))
+    pack(note_label('Your account is signed in, but the repository is not starred yet. ' \
+                    'Press the button below, then click the ★ Star button on GitHub:'))
+    star_btn = Gtk::Button.new(label: '★ Star on GitHub')
+    star_btn.signal_connect('clicked') { open_url(RpgmStarGate::REPO_URL) }
+    pack(star_btn)
+    check_btn = Gtk::Button.new(label: 'Check again')
+    check_btn.signal_connect('clicked') do
+      Thread.new do
+        RpgmStarGate.recheck_star(@token, method(:on_gate_event))
+      end
+    end
+    pack(check_btn)
+    pack(note_label('(starred but the check says no? GitHub caches for a moment — ' \
+                    'press Check again in a few seconds)'))
+    @content.show_all
+  end
+
+  def show_done(login)
+    clear
+    pack(title_label('★ Unlocked — thank you! ★'))
+    pack(note_label("Starred by #{login}.\n" \
+                    'rpgm-decrypt GUI will not ask again on this computer.'))
+    go = Gtk::Button.new(label: 'Start decrypting')
+    go.signal_connect('clicked') { @window.destroy }
+    pack(go)
+    @content.show_all
+  end
+
+  def show_error(message)
+    clear
+    pack(title_label('Unlock problem'))
+    pack(note_label(message.to_s))
+    pack(note_label("(offline? the gate needs internet on the first run only —\n" \
+                    'already activated computers work offline forever)'))
+    retry_btn = Gtk::Button.new(label: 'Retry')
+    retry_btn.signal_connect('clicked') { show_intro }
+    pack(retry_btn)
+    @content.show_all
+  end
+end
+
 # Launch the GUI. Skip during OCRA's build-time "training" run (set by
 # build_windows.ps1) so the packager doesn't block on Gtk.main.
-RpgmGui.new if ENV['RPGM_GUI_BUILD'].nil?
+#
+# Single main loop for the whole app: if this machine is already unlocked the
+# main window opens directly; otherwise the star gate runs first and hands
+# over to the main window (inside the same loop) once the signed-in GitHub
+# account is verified to star the repo.
+if ENV['RPGM_GUI_BUILD'].nil?
+  Gtk.init
+  RpgmGui.apply_style
+  if RpgmStarGate.load_unlock(EXE_DIR)
+    RpgmGui.new
+  else
+    GateWindow.new
+  end
+  Gtk.main
+end
