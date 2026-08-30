@@ -183,7 +183,9 @@ jobs:
       - name: Install GTK3 runtime (MSYS2)
         shell: bash
         run: |
-          C:\msys64\usr\bin\bash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gtk3'
+          # Forward slashes: bash strips backslashes from this scalar, and the
+          # mangled path fails with "command not found".
+          C:/msys64/usr/bin/bash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gtk3'
 
       - name: Install GUI gems
         shell: pwsh
