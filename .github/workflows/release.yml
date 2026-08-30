@@ -183,9 +183,10 @@ jobs:
       - name: Install GTK3 runtime (MSYS2)
         shell: bash
         run: |
-          # Forward slashes: bash strips backslashes from this scalar, and the
-          # mangled path fails with "command not found".
-          C:/msys64/usr/bin/bash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gtk3'
+          # ucrt64: matches the locally validated build environment (Ruby
+          # 3.3 x64-mingw-ucrt + ucrt64 GTK). Forward slashes — bash strips
+          # backslashes from this scalar ("C:msys64... command not found").
+          C:/msys64/usr/bin/bash -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3'
 
       - name: Install GUI gems
         shell: pwsh
@@ -197,10 +198,8 @@ jobs:
         shell: pwsh
         working-directory: gui
         run: |
-          # GTK was installed into mingw64 (NOT the script's ucrt64 default):
-          # staging from ucrt64 would bundle a runtime without GTK DLLs and
-          # the packed exe would die at require 'gtk3'.
-          ./build_windows.ps1 -GtkPrefix C:\msys64\mingw64
+          # Default -GtkPrefix is ucrt64 — the prefix GTK was just installed to.
+          ./build_windows.ps1
 
       - name: Smoke-test the GUI bundle
         shell: pwsh
