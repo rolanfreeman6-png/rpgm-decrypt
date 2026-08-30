@@ -188,7 +188,7 @@ jobs:
           # Print WHERE pacman actually installs: runners have been seen
           # reporting success while C:\msys64\ucrt64 stayed empty (staging
           # found nothing -> zip shipped without the GTK runtime).
-          & C:/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3 mingw-w64-ucrt-x86_64-libffi mingw-w64-ucrt-x86_64-gcc-libs mingw-w64-ucrt-x86_64-libwinpthread mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-gettext-runtime mingw-w64-ucrt-x86_64-libiconv; echo "ROOT=$(cygpath -w /)"; pacman -Ql mingw-w64-ucrt-x86_64-gtk3 | grep "bin/libgtk-3-0.dll$" || true; echo "UCRT64BIN=$(cygpath -w /ucrt64/bin 2>/dev/null)"'
+          & C:/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3 mingw-w64-ucrt-x86_64-libffi mingw-w64-ucrt-x86_64-gcc-libs mingw-w64-ucrt-x86_64-libwinpthread mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-gettext-runtime mingw-w64-ucrt-x86_64-libiconv mingw-w64-ucrt-x86_64-gobject-introspection-runtime; echo "ROOT=$(cygpath -w /)"; pacman -Ql mingw-w64-ucrt-x86_64-gtk3 | grep "bin/libgtk-3-0.dll$" || true; echo "UCRT64BIN=$(cygpath -w /ucrt64/bin 2>/dev/null)"'
           if ($LASTEXITCODE -ne 0) { throw "pacman failed (exit $LASTEXITCODE)" }
           $n = @(Get-ChildItem C:\msys64\ucrt64\bin -Filter *.dll -ErrorAction SilentlyContinue).Count
           Write-Output "C:\msys64\ucrt64\bin holds $n DLLs after pacman"
@@ -197,8 +197,11 @@ jobs:
           # and its absence kills the packed GUI with exit 1). The extra
           # package names above force a reinstall; verify the load-critical
           # DLLs exist rather than trusting the exit code.
+          # gobject-introspection-runtime is NOT a gtk3 dependency, but the
+          # gobject_introspection.so extension imports libgirepository-1.0-1.dll.
           foreach ($d in 'libffi-8.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll',
-                        'libintl-8.dll', 'libiconv-2.dll', 'zlib1.dll') {
+                        'libintl-8.dll', 'libiconv-2.dll', 'zlib1.dll',
+                        'libgirepository-1.0-1.dll') {
             if (-not (Test-Path (Join-Path 'C:\msys64\ucrt64\bin' $d))) {
               throw "GTK base DLL missing after pacman: $d"
             }
