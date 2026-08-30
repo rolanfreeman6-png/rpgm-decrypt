@@ -116,6 +116,14 @@ if (Test-Path $builtinDir) {
 # The GTK3 runtime (ucrt64) must be on PATH and the GObject-Introspection
 # typelibs reachable so the training run can `require 'gtk3'`. RPGM_GUI_BUILD=1
 # tells main.rb to skip the Gtk.main loop during the build-time training pass.
+# OCRA 1.3.11 predates Ruby 3.3.12, whose $LOADED_FEATURES contains a phantom
+# "fiber.so" (built into the interpreter, no file on disk): pristine OCRA dies
+# with Errno::ENOENT on <script dir>\fiber.so mid-build. patch_ocra.rb adds a
+# File.exist? guard to OcraBuilder#createfile — idempotent, byte-exact, aborts
+# loudly if the gem layout ever changes. See tools/patch_ocra.rb for details.
+ruby (Join-Path $root 'tools\patch_ocra.rb')
+if ($LASTEXITCODE -ne 0) { throw 'patch_ocra.rb failed' }
+
 Write-Output 'Running OCRA...'
 $env:PATH = "$gtkbin;$env:PATH"
 $env:GI_TYPELIB_PATH = ([IO.Path]::Combine($gtk, 'lib', 'girepository-1.0'))
@@ -135,8 +143,10 @@ $env:RPGM_GUI_BUILD = '1'
 # --windows: build the packed exe for the Windows GUI subsystem so launching
 # it does NOT pop up a black console window (professional, self-contained app).
 $iconArgs = if (Test-Path $iconIco) { @('--icon', $iconIco) } else { @() }
-# One retry: antivirus real-time scans occasionally kill the stub-writing
-# ruby process even with workspace exclusions in place (silent exit 1).
+# One retry as belt-and-braces: hosted-runner antivirus real-time scans have
+# been observed killing the stub-writing ruby process (silent exit 1) even
+# with Defender exclusions in place; the fiber.so crash above fails
+# deterministically and is fixed by patch_ocra.rb instead.
 $ocraOk = $false
 foreach ($attempt in 1..2) {
   if ($attempt -gt 1) { Write-Output 'Retrying OCRA after failure...' }
