@@ -188,10 +188,21 @@ jobs:
           # Print WHERE pacman actually installs: runners have been seen
           # reporting success while C:\msys64\ucrt64 stayed empty (staging
           # found nothing -> zip shipped without the GTK runtime).
-          & C:/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3; echo "ROOT=$(cygpath -w /)"; pacman -Ql mingw-w64-ucrt-x86_64-gtk3 | grep "bin/libgtk-3-0.dll$" || true; echo "UCRT64BIN=$(cygpath -w /ucrt64/bin 2>/dev/null)"'
+          & C:/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3 mingw-w64-ucrt-x86_64-libffi mingw-w64-ucrt-x86_64-gcc-libs mingw-w64-ucrt-x86_64-libwinpthread mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-gettext-runtime mingw-w64-ucrt-x86_64-libiconv; echo "ROOT=$(cygpath -w /)"; pacman -Ql mingw-w64-ucrt-x86_64-gtk3 | grep "bin/libgtk-3-0.dll$" || true; echo "UCRT64BIN=$(cygpath -w /ucrt64/bin 2>/dev/null)"'
           if ($LASTEXITCODE -ne 0) { throw "pacman failed (exit $LASTEXITCODE)" }
           $n = @(Get-ChildItem C:\msys64\ucrt64\bin -Filter *.dll -ErrorAction SilentlyContinue).Count
           Write-Output "C:\msys64\ucrt64\bin holds $n DLLs after pacman"
+          # The runner image and the pacman database disagree: packages the DB
+          # calls installed can be absent on disk (glib2 loads libffi-8.dll,
+          # and its absence kills the packed GUI with exit 1). The extra
+          # package names above force a reinstall; verify the load-critical
+          # DLLs exist rather than trusting the exit code.
+          foreach ($d in 'libffi-8.dll', 'libgcc_s_seh-1.dll', 'libwinpthread-1.dll',
+                        'libintl-8.dll', 'libiconv-2.dll', 'zlib1.dll') {
+            if (-not (Test-Path (Join-Path 'C:\msys64\ucrt64\bin' $d))) {
+              throw "GTK base DLL missing after pacman: $d"
+            }
+          }
 
       - name: Install GUI gems
         shell: pwsh
@@ -227,12 +238,21 @@ jobs:
           $dlls = @(Get-ChildItem gui-smoke\rpgm-decrypt-gui -Filter *.dll -Recurse).Count
           Write-Output "GUI zip carries $dlls DLLs"
           if ($dlls -lt 50) { throw "GUI zip is missing the GTK runtime (only $dlls DLLs)" }
+          # Extract the OCRA stub into the workspace (already excluded from
+          # Defender) instead of the runner TMPDIR.
+          $t = Join-Path $env:GITHUB_WORKSPACE 'ocra-tmp'
+          New-Item -ItemType Directory -Force $t | Out-Null
+          $env:TEMP = $t; $env:TMP = $t; $env:TMPDIR = $t
           # The bundled exe must stay alive (a windowed exe that dies on a
           # missing DLL pops a modal dialog or exits instantly — both are
           # failures here, not passes).
           $p = Start-Process -FilePath .\gui-smoke\rpgm-decrypt-gui\rpgm-decrypt-gui.exe -PassThru
           Start-Sleep -Seconds 8
-          if ($p.HasExited) { throw "GUI exe exited early with code $($p.ExitCode)" }
+          if ($p.HasExited) {
+            $log = 'gui-smoke\rpgm-decrypt-gui\crash.log'
+            if (Test-Path $log) { Write-Output '--- crash.log ---'; Get-Content $log }
+            throw "GUI exe exited early with code $($p.ExitCode)"
+          }
           Stop-Process -Id $p.Id
 
       - name: Append the GUI zip to the GitHub Release

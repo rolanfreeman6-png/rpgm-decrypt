@@ -27,6 +27,23 @@ GUI_VERSION = '1.0.0'
 # --- locate the directory this executable lives in -------------------------
 EXE_DIR = File.dirname(ENV['OCRA_EXECUTABLE'] || File.expand_path($PROGRAM_NAME))
 
+# Crash reporter: the packed exe is windowed (--windows), so an unhandled
+# exception at startup dies with exit 1 and no visible output. Persist it
+# next to the executable instead — users can attach it to a bug report.
+at_exit do
+  ex = $!
+  next if ex.nil? || ex.is_a?(SystemExit)
+
+  begin
+    File.write(File.join(EXE_DIR, 'crash.log'),
+               "#{Time.now} rpgm-decrypt-gui #{GUI_VERSION}\n" \
+               "#{ex.class}: #{ex.message}\n" \
+               "#{Array(ex.backtrace).join("\n")}\n")
+  rescue StandardError
+    nil
+  end
+end
+
 # Make sure the bundled GTK3 runtime (which ships next to this .exe after OCRA
 # extraction) is found. These MUST be set BEFORE requiring gtk3, because the
 # gtk3 gem loads libgtk + GObject-Introspection typelibs at require time.
