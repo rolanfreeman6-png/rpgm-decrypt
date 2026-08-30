@@ -181,12 +181,17 @@ jobs:
           working-directory: gui
 
       - name: Install GTK3 runtime (MSYS2)
-        shell: bash
+        shell: pwsh
         run: |
-          # ucrt64: matches the locally validated build environment (Ruby
-          # 3.3 x64-mingw-ucrt + ucrt64 GTK). Forward slashes — bash strips
-          # backslashes from this scalar ("C:msys64... command not found").
-          C:/msys64/usr/bin/bash -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3'
+          # Run from pwsh (not shell: bash): setup-ruby puts Ruby's bundled
+          # msys2 bash first on PATH, and bash scalars strip backslashes.
+          # Print WHERE pacman actually installs: runners have been seen
+          # reporting success while C:\msys64\ucrt64 stayed empty (staging
+          # found nothing -> zip shipped without the GTK runtime).
+          & C:/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-ucrt-x86_64-gtk3; echo "ROOT=$(cygpath -w /)"; pacman -Ql mingw-w64-ucrt-x86_64-gtk3 | grep "bin/libgtk-3-0.dll$" || true; echo "UCRT64BIN=$(cygpath -w /ucrt64/bin 2>/dev/null)"'
+          if ($LASTEXITCODE -ne 0) { throw "pacman failed (exit $LASTEXITCODE)" }
+          $n = @(Get-ChildItem C:\msys64\ucrt64\bin -Filter *.dll -ErrorAction SilentlyContinue).Count
+          Write-Output "C:\msys64\ucrt64\bin holds $n DLLs after pacman"
 
       - name: Install GUI gems
         shell: pwsh
@@ -217,11 +222,18 @@ jobs:
         working-directory: gui
         run: |
           Expand-Archive rpgm-decrypt-gui-windows-x64.zip -DestinationPath gui-smoke -Force
-          # The zip unpacks to a single rpgm-decrypt-gui\ folder.
-          # The bundled exe extracts GTK on first run; just confirm it starts and exits.
+          # A zip without the GTK runtime builds "fine" and produces a GUI that
+          # cannot start (shipped exactly that once) — gate on DLL presence.
+          $dlls = @(Get-ChildItem gui-smoke\rpgm-decrypt-gui -Filter *.dll -Recurse).Count
+          Write-Output "GUI zip carries $dlls DLLs"
+          if ($dlls -lt 50) { throw "GUI zip is missing the GTK runtime (only $dlls DLLs)" }
+          # The bundled exe must stay alive (a windowed exe that dies on a
+          # missing DLL pops a modal dialog or exits instantly — both are
+          # failures here, not passes).
           $p = Start-Process -FilePath .\gui-smoke\rpgm-decrypt-gui\rpgm-decrypt-gui.exe -PassThru
           Start-Sleep -Seconds 8
-          if (-not $p.HasExited) { Stop-Process -Id $p.Id }
+          if ($p.HasExited) { throw "GUI exe exited early with code $($p.ExitCode)" }
+          Stop-Process -Id $p.Id
 
       - name: Append the GUI zip to the GitHub Release
         working-directory: gui

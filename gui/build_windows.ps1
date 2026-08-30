@@ -7,8 +7,27 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$gtk = if ($GtkPrefix) { $GtkPrefix } else { 'C:\msys64\ucrt64' }
-if (-not (Test-Path $gtk)) { throw "GTK3 prefix not found: $gtk (set -GtkPrefix)" }
+
+# --- locate the GTK3 prefix -------------------------------------------------
+# CI pacman steps have reported success while C:\msys64\ucrt64 stayed empty
+# (staging found nothing, the zip shipped without the GTK runtime), so the
+# prefix is not trusted blindly: probe the candidates for the actual GTK DLL
+# and pick the first one that has it.
+$gtkCandidates = @()
+if ($GtkPrefix) { $gtkCandidates += $GtkPrefix }
+$gtkCandidates += 'C:\msys64\ucrt64'
+if ($env:RI_DEVKIT) { $gtkCandidates += (Join-Path $env:RI_DEVKIT 'ucrt64') }
+$gtk = $null
+foreach ($cand in $gtkCandidates) {
+  $bin = Join-Path $cand 'bin'
+  $dlls = @(Get-ChildItem -Path $bin -Filter '*.dll' -ErrorAction SilentlyContinue)
+  $hasGtk = Test-Path (Join-Path $bin 'libgtk-3-0.dll')
+  Write-Output ("GTK probe {0}: {1} DLLs, libgtk-3-0.dll={2}" -f $cand, $dlls.Count, $hasGtk)
+  if ($hasGtk) { $gtk = $cand; break }
+}
+if (-not $gtk) {
+  throw "no usable GTK3 prefix found (probed: $($gtkCandidates -join ', ')). Install mingw-w64-ucrt-x86_64-gtk3 or pass -GtkPrefix."
+}
 
 # --- locate the OCaml decrypter --------------------------------------------
 if (-not $OcamlExe) {
@@ -67,6 +86,13 @@ if (Test-Path $etc) {
 
 # Import libraries (*.dll.a) are linker inputs, never runtime-loaded — drop them.
 Get-ChildItem -Path $runtime -Recurse -Filter '*.dll.a' | Remove-Item -Force
+
+# Guard the staging: an empty runtime here means the zip ships without GTK and
+# the GUI cannot start on the user's machine (CI shipped exactly that once).
+$stagedDlls = @(Get-ChildItem -Path $runtime -Filter '*.dll' -ErrorAction SilentlyContinue)
+$stagedAll = @(Get-ChildItem -Path $runtime -Recurse -File)
+Write-Output ("Staged GTK runtime: {0} flat DLLs, {1} files total" -f $stagedDlls.Count, $stagedAll.Count)
+if ($stagedDlls.Count -lt 50) { throw "GTK staging incomplete (only $($stagedDlls.Count) DLLs from $gtk) - aborting instead of shipping a broken zip" }
 
 # libcrypto-3-x64.dll / libssl-3-x64.dll: the GTK runtime's copies MUST NOT
 # ship — they would shadow the ones from ruby_builtin_dlls (Windows resolves
