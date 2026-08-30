@@ -135,8 +135,15 @@ $env:RPGM_GUI_BUILD = '1'
 # --windows: build the packed exe for the Windows GUI subsystem so launching
 # it does NOT pop up a black console window (professional, self-contained app).
 $iconArgs = if (Test-Path $iconIco) { @('--icon', $iconIco) } else { @() }
-ruby -S ocra (Join-Path $root 'main.rb') --output (Join-Path $root 'rpgm-decrypt-gui.exe') --windows @iconArgs --add-all-core --gem-full @ocraExtra
-if ($LASTEXITCODE -ne 0) { throw "ocra failed (exit $LASTEXITCODE)" }
+# One retry: antivirus real-time scans occasionally kill the stub-writing
+# ruby process even with workspace exclusions in place (silent exit 1).
+$ocraOk = $false
+foreach ($attempt in 1..2) {
+  if ($attempt -gt 1) { Write-Output 'Retrying OCRA after failure...' }
+  ruby -S ocra (Join-Path $root 'main.rb') --output (Join-Path $root 'rpgm-decrypt-gui.exe') --windows @iconArgs --add-all-core --gem-full @ocraExtra
+  if ($LASTEXITCODE -eq 0) { $ocraOk = $true; break }
+}
+if (-not $ocraOk) { throw "ocra failed twice (exit $LASTEXITCODE)" }
 
 # --- assemble the flat dist folder -----------------------------------------
 $dist = Join-Path $root 'dist'

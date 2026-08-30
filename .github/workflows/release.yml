@@ -194,6 +194,17 @@ jobs:
         run: |
           gem install gtk3 ocra
 
+      - name: Windows Defender exclusions (OCRA stub writing trips real-time scan)
+        shell: pwsh
+        run: |
+          # The OCRA builder writes a ruby stub .exe with embedded scripts —
+          # behaviour Defender's real-time heuristics flag, killing ruby
+          # silently (exit 1, zero output) mid-build on hosted runners.
+          Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE" -ErrorAction Continue
+          Add-MpPreference -ExclusionPath "$env:TEMP" -ErrorAction Continue
+          Add-MpPreference -ExclusionProcess ruby.exe -ErrorAction Continue
+          Add-MpPreference -ExclusionProcess rubyw.exe -ErrorAction Continue
+
       - name: Build + bundle the GUI zip
         shell: pwsh
         working-directory: gui
